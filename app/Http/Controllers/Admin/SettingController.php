@@ -23,16 +23,17 @@ class SettingController extends Controller
     {
         $settings = $this->settingService->getAllSettings();
         $paymentSettings = $this->settingService->getPaymentSettings();
+        $systemActive = $this->settingService->isSystemActive();
         
         $features = [
-            'system_active' => $this->settingService->isSystemActive(),
+            'system_active' => $systemActive,
             'ai_mcq' => $this->settingService->isFeatureEnabled('feature_ai_mcq'),
             'csv_import' => $this->settingService->isFeatureEnabled('feature_csv_import'),
             'payments' => $this->settingService->isFeatureEnabled('feature_payments'),
             'analytics' => $this->settingService->isFeatureEnabled('feature_analytics'),
         ];
 
-        return view('admin.settings.index', compact('settings', 'paymentSettings', 'features'));
+        return view('admin.settings.index', compact('settings', 'paymentSettings', 'features', 'systemActive'));
     }
 
     /**
