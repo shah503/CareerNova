@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Mcq extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'subject_id',
@@ -17,11 +18,21 @@ class Mcq extends Model
         'option_b',
         'option_c',
         'option_d',
-        'correct_answer',
+        'correct_answer', // ✅ FIXED: Use correct_answer to match migration
         'difficulty',
         'explanation',
         'source',
         'status',
+        'verified',
+        'needs_review',
+        'approved_by',
+        'approved_at',
+    ];
+
+    protected $casts = [
+        'approved_at' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
     // Relationships
@@ -51,36 +62,13 @@ class Mcq extends Model
         return $query->where('difficulty', $difficulty);
     }
 
+    public function scopeVerified($query)
+    {
+        return $query->where('status', 'active')->where('verified', true);
+    }
+
     public function scopeBySubject($query, $subjectId)
     {
         return $query->where('subject_id', $subjectId);
-    }
-
-    public function scopePendingReview($query)
-    {
-        return $query->where('status', 'pending_review');
-    }
-
-    // Accessors
-    public function getCorrectOptionText()
-    {
-        $option = 'option_' . strtolower($this->correct_answer);
-        return $this->{$option};
-    }
-
-    public function getOptionByLetter($letter)
-    {
-        $column = 'option_' . strtolower($letter);
-        return $this->{$column} ?? null;
-    }
-
-    public function getDifficultyBadge()
-    {
-        return match($this->difficulty) {
-            'easy' => '<span class="badge bg-success">Easy</span>',
-            'medium' => '<span class="badge bg-warning">Medium</span>',
-            'hard' => '<span class="badge bg-danger">Hard</span>',
-            default => '<span class="badge bg-secondary">Unknown</span>',
-        };
     }
 }

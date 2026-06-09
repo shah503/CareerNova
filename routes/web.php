@@ -1,20 +1,117 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\AdminManagementController;
+use App\Http\Controllers\Teacher\DashboardController as TeacherDashboardController;
+use App\Http\Controllers\Teacher\CsvController;
+use App\Http\Controllers\Student\DashboardController as StudentDashboardController;
+use App\Http\Controllers\Parent\DashboardController as ParentDashboardController;
+use App\Http\Controllers\McqController;
 use Illuminate\Support\Facades\Route;
 
+/*
+|--------------------------------------------------------------------------
+| Public Guest Routes
+|--------------------------------------------------------------------------
+*/
 Route::get('/', function () {
     return view('welcome');
-});
+})->name('home');
 
-Route::get('/dashboard', function () {
-    return view('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+// 🚀 FIXED: Added the public Guest demo landing track completely outside the auth block
+Route::get('/guest/dashboard', function () {
+    // You can point this to a unique view like: return view('guest.dashboard');
+    return "<h3>🌍 Welcome to the Guest Demo Workspace!</h3><p>You are viewing public features. Log in to take full mock examinations.</p>";
+})->name('guest.dashboard');
 
+// Authentication Routes (Laravel Breeze)
+require __DIR__.'/auth.php';
+
+/*
+|--------------------------------------------------------------------------
+| Authenticated User Router System
+|--------------------------------------------------------------------------
+*/
 Route::middleware('auth')->group(function () {
+
+    // Central core switch map handling logins, registrations, and direct hits
+    Route::get('/dashboard', function () {
+        return match (auth()->user()->role) {
+            'admin'   => redirect()->route('admin.dashboard'),
+            'teacher' => redirect()->route('teacher.dashboard'),
+            'parent'  => redirect()->route('parent.dashboard'),
+            default   => redirect()->route('student.dashboard'),
+        };
+    })->name('dashboard');
+
+    // Profile Routes
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-});
 
-require __DIR__.'/auth.php';
+    // Admin Routes
+    Route::middleware('admin')->prefix('admin')->name('admin.')->group(function () {
+        Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
+        Route::get('/users', [AdminController::class, 'listUsers'])->name('users.list');
+        Route::get('/users/{user}/edit', [AdminController::class, 'editUser'])->name('users.edit');
+        Route::patch('/users/{user}', [AdminController::class, 'updateUser'])->name('users.update');
+        Route::get('/mcqs', [AdminController::class, 'mcqs'])->name('mcqs.list');
+        Route::patch('/mcqs/{mcq}/verify', [AdminController::class, 'verifyMcq'])->name('mcqs.verify');
+        Route::patch('/mcqs/{mcq}/flag', [AdminController::class, 'flagMcq'])->name('mcqs.flag');
+        Route::delete('/mcqs/{mcq}', [AdminController::class, 'deleteMcq'])->name('mcqs.delete');
+        Route::get('/analytics', [AdminController::class, 'analytics'])->name('analytics');
+        Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
+    
+    // ✅ NEW: Admin Management Routes
+        // Admin Management (create/list/delete admins)
+        Route::get('/admins', [AdminManagementController::class, 'listAdmins'])->name('admins.list');
+        Route::get('/admins/create', [AdminManagementController::class, 'create'])->name('admins.create');
+        Route::post('/admins', [AdminManagementController::class, 'store'])->name('admins.store');
+        Route::delete('/admins/{admin}', [AdminManagementController::class, 'destroyAdmin'])->name('admins.destroy');
+        Route::get('/subjects', [AdminController::class, 'subjects'])->name('subjects');
+    });
+
+    // Teacher Routes
+    Route::middleware('teacher')->prefix('teacher')->name('teacher.')->group(function () {
+        Route::get('/dashboard', [TeacherDashboardController::class, 'index'])->name('dashboard');
+        Route::get('/mcqs', [TeacherDashboardController::class, 'mcqs'])->name('mcqs');
+        Route::get('/mcqs/create', [TeacherDashboardController::class, 'createMcq'])->name('mcqs.create');
+        Route::post('/mcqs', [TeacherDashboardController::class, 'storeMcq'])->name('mcqs.store');
+        Route::get('/classes', [TeacherDashboardController::class, 'classes'])->name('classes');
+        Route::get('/results', [TeacherDashboardController::class, 'results'])->name('results');
+    });
+        // CSV Import Routes
+    Route::middleware('teacher')->prefix('teacher/csv')->name('teacher.csv.')->group(function () {
+        Route::get('/download-template', [CsvController::class, 'downloadTemplate'])->name('download-template');
+        Route::post('/import', [CsvController::class, 'import'])->name('import');
+
+    });
+
+    // Student Routes
+    Route::middleware('student')->prefix('student')->name('student.')->group(function () {
+        Route::get('/dashboard', [StudentDashboardController::class, 'index'])->name('dashboard');
+        Route::get('/exams', [StudentDashboardController::class, 'exams'])->name('exams');
+        Route::get('/results', [StudentDashboardController::class, 'results'])->name('results');
+        Route::get('/analytics', [StudentDashboardController::class, 'analytics'])->name('analytics');
+        Route::post('/exam/progress', [McqController::class, 'getProgress'])->name('exam.progress');
+        Route::post('/exam/mark-review', [McqController::class, 'markForReview'])->name('exam.mark-review');
+    });
+
+    // Parent Routes
+    Route::middleware('parent')->prefix('parent')->name('parent.')->group(function () {
+        Route::get('/dashboard', [ParentDashboardController::class, 'index'])->name('dashboard');
+        Route::get('/children', [ParentDashboardController::class, 'children'])->name('children');
+        Route::get('/children/{child}/results', [ParentDashboardController::class, 'childResults'])->name('child.results');
+    });
+
+    // MCQ/Exam Routes (Students taking exams)
+    Route::middleware('student')->prefix('exam')->name('exam.')->group(function () {
+        Route::get('/select-subject', [McqController::class, 'selectSubject'])->name('select-subject');
+        Route::post('/start', [McqController::class, 'startTest'])->name('start');
+        Route::get('/index', [McqController::class, 'index'])->name('index');
+        Route::post('/answer', [McqController::class, 'saveAnswer'])->name('answer');
+        Route::post('/submit', [McqController::class, 'submitTest'])->name('submit');
+        Route::get('/result/{examSession}', [McqController::class, 'result'])->name('result');
+    });
+});

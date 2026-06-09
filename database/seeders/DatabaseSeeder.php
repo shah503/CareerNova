@@ -9,7 +9,13 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            CompleteSetupSeeder::class,
+            AdminSeeder::class,
+            SubjectSeeder::class,
+            UserSeeder::class,
+            McqSeeder::class,
+            ExamSessionSeeder::class,
         ]);
-}
+
+        echo "\n✅ Database seeding completed successfully!\n";
+    }
 }

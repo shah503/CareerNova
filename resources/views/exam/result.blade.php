@@ -3,197 +3,154 @@
 @section('title', 'Exam Results')
 
 @section('content')
-<div class="container py-5">
-    <!-- Result Header -->
-    <div class="row mb-4">
-        <div class="col-md-12">
-            <div class="card bg-gradient text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                <div class="card-body text-center py-5">
-                    <h2 class="mb-3">{{ $session->subject->name }} - Exam Results</h2>
-                    <div class="row">
-                        <div class="col-md-3">
-                            <h4>{{ $session->score }}/{{ $session->total_questions }}</h4>
-                            <p class="small">Score</p>
-                        </div>
-                        <div class="col-md-3">
-                            <h4>{{ $session->percentage ?? 0 }}%</h4>
-                            <p class="small">Percentage</p>
-                        </div>
-                        <div class="col-md-3">
-                            <h4>{{ $grade['grade'] ?? 'N/A' }}</h4>
-                            <p class="small">Grade</p>
-                        </div>
-                        <div class="col-md-3">
-                            <h4>{{ $session->finished_at ? $session->finished_at->diffForHumans() : 'Just now' }}</h4>
-                            <p class="small">Completed</p>
-                        </div>
+<div class="py-12">
+    <div class="max-w-6xl mx-auto sm:px-6 lg:px-8">
+
+        {{-- RESULT HEADER --}}
+        <div class="card mb-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h1 class="text-4xl font-weight-bold mb-2">
+                            @if ($examSession->percentage >= 80)
+                                🎉 Excellent Performance!
+                            @elseif ($examSession->percentage >= 60)
+                                ✅ Good Job!
+                            @elseif ($examSession->percentage >= 50)
+                                👍 You Passed!
+                            @else
+                                📚 Keep Practicing!
+                            @endif
+                        </h1>
+                        <p class="mb-0">Your exam has been successfully submitted and evaluated.</p>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <div style="font-size: 3.5rem; font-weight: bold;">{{ $examSession->percentage }}%</div>
+                        <div style="font-size: 1.2rem;">{{ $examSession->score }}/{{ $examSession->total_questions }} Correct</div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <div class="row">
-        <!-- Main Results -->
-        <div class="col-md-8">
-            <!-- Statistics -->
-            <div class="row mb-4">
-                <div class="col-md-6">
-                    <div class="card text-center">
-                        <div class="card-body">
-                            <i class="fas fa-check text-success fa-3x mb-3"></i>
-                            <h4 class="text-success">{{ $session->correct_answers ?? 0 }}</h4>
-                            <p class="text-muted small">Correct Answers</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="card text-center">
-                        <div class="card-body">
-                            <i class="fas fa-times text-danger fa-3x mb-3"></i>
-                            <h4 class="text-danger">{{ ($session->wrong_answers ?? 0) + ($session->unanswered ?? 0) }}</h4>
-                            <p class="text-muted small">Wrong/Unanswered</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Difficulty Breakdown -->
-            @if (isset($scoreByDifficulty) && count($scoreByDifficulty) > 0)
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-info text-white">
-                        <h5 class="mb-0"><i class="fas fa-chart-bar"></i> Performance by Difficulty</h5>
-                    </div>
+        {{-- STATISTICS ROW --}}
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card text-center">
                     <div class="card-body">
-                        @foreach ($scoreByDifficulty as $difficulty => $scores)
-                            <div class="mb-3">
-                                <div class="d-flex justify-content-between mb-2">
-                                    <span class="fw-bold text-capitalize">{{ $difficulty }}</span>
-                                    <span class="text-muted">{{ $scores['correct'] }}/{{ $scores['total'] }}</span>
-                                </div>
-                                <div class="progress">
-                                    <div class="progress-bar {{ $scores['percentage'] >= 70 ? 'bg-success' : ($scores['percentage'] >= 50 ? 'bg-warning' : 'bg-danger') }}" 
-                                         style="width: {{ $scores['percentage'] }}%">
-                                        {{ round($scores['percentage']) }}%
-                                    </div>
-                                </div>
-                            </div>
-                        @endforeach
+                        <div style="font-size: 2.5rem; color: #28a745;">{{ $examSession->correct_answers }}</div>
+                        <div class="text-muted">Correct Answers</div>
                     </div>
                 </div>
-            @endif
-
-            <!-- Answer Review -->
-            <div class="card shadow-sm">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="fas fa-list-check"></i> Answer Review</h5>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <div style="font-size: 2.5rem; color: #dc3545;">{{ $examSession->wrong_answers }}</div>
+                        <div class="text-muted">Incorrect Answers</div>
+                    </div>
                 </div>
-                <div class="card-body">
-                    @if (isset($summary['results']) && count($summary['results']) > 0)
-                        @foreach ($summary['results'] as $index => $result)
-                            <div class="border-bottom pb-4 mb-4" style="{{ $index === count($summary['results']) - 1 ? 'border-bottom: none;' : '' }}">
-                                <div class="d-flex justify-content-between align-items-start mb-2">
-                                    <h6 class="fw-bold">Question {{ $index + 1 }}</h6>
-                                    <span class="badge {{ $result['is_correct'] ? 'bg-success' : 'bg-danger' }}">
-                                        {{ $result['is_correct'] ? '✓ Correct' : '✗ Wrong' }}
-                                    </span>
-                                </div>
-
-                                <p class="mb-3">{{ $result['question'] ?? 'Question not available' }}</p>
-
-                                <div class="alert {{ $result['is_correct'] ? 'alert-success' : 'alert-danger' }} py-2 mb-3">
-                                    <small>
-                                        <strong>Your Answer:</strong> 
-                                        {{ $result['selected_answer'] ?? 'Not answered' }}
-                                    </small>
-                                </div>
-
-                                @if (!$result['is_correct'])
-                                    <div class="alert alert-info py-2 mb-3">
-                                        <small>
-                                            <strong>Correct Answer:</strong> {{ $result['correct_answer'] ?? 'N/A' }}
-                                        </small>
-                                    </div>
-                                @endif
-
-                                @if (isset($result['explanation']) && $result['explanation'])
-                                    <div class="alert alert-light border py-2">
-                                        <small>
-                                            <strong><i class="fas fa-lightbulb"></i> Explanation:</strong><br>
-                                            {{ $result['explanation'] }}
-                                        </small>
-                                    </div>
-                                @endif
-
-                                <small class="text-muted">
-                                    <span class="badge bg-secondary">{{ ucfirst($result['difficulty'] ?? 'medium') }}</span>
-                                </small>
-                            </div>
-                        @endforeach
-                    @else
-                        <div class="alert alert-info">
-                            No answer details available yet.
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <div style="font-size: 2.5rem; color: #ffc107;">{{ $examSession->unanswered_count ?? 0 }}</div>
+                        <div class="text-muted">Unanswered</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <div style="font-size: 2.5rem; color: #0d6efd;">
+                            @php
+                                $minutes = floor(($examSession->finished_at->timestamp - $examSession->started_at->timestamp) / 60);
+                                $seconds = ($examSession->finished_at->timestamp - $examSession->started_at->timestamp) % 60;
+                                echo $minutes . 'm ' . $seconds . 's';
+                            @endphp
                         </div>
-                    @endif
+                        <div class="text-muted">Time Taken</div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Sidebar -->
-        <div class="col-md-4">
-            <!-- Grade Card -->
-            <div class="card text-center shadow-sm mb-4" style="border-top: 4px solid {{ $grade['color'] ?? '#ffc107' === 'success' ? '#28a745' : ($grade['color'] ?? '#ffc107' === 'danger' ? '#dc3545' : '#ffc107') }};">
-                <div class="card-body py-5">
-                    <h1 class="text-{{ $grade['color'] ?? 'warning' }} mb-3">{{ $grade['grade'] ?? 'N/A' }}</h1>
-                    <h5>{{ $grade['remarks'] ?? 'Keep practicing!' }}</h5>
-                    <p class="text-muted mt-3">Your performance</p>
-                </div>
+        {{-- RANKING INFO --}}
+        @if ($userRank !== 'N/A')
+            <div class="alert alert-info mb-4">
+                <strong><i class="fas fa-trophy"></i> Your Ranking:</strong> You are currently ranked #{{ $userRank }} on the leaderboard!
             </div>
+        @endif
 
-            <!-- Actions -->
-            <div class="d-grid gap-2 mb-4">
-                <a href="/student/dashboard" class="btn btn-primary">
-                    <i class="fas fa-home"></i> Back to Dashboard
-                </a>
-                <a href="/student/analytics" class="btn btn-outline-primary">
-                    <i class="fas fa-chart-line"></i> View Analytics
-                </a>
-                <a href="/exam/select-subject" class="btn btn-outline-success">
-                    <i class="fas fa-pencil"></i> Take Another Exam
-                </a>
+        {{-- ANSWER REVIEW --}}
+        <div class="card">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">📋 Answer Review</h5>
             </div>
+            <div class="card-body">
+                @foreach ($results as $index => $result)
+                    <div class="card mb-3 {{ $result['is_correct'] ? 'border-success' : 'border-danger' }}">
+                        <div class="card-header {{ $result['is_correct'] ? 'bg-success' : 'bg-danger' }} text-white">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0">Question {{ $index + 1 }}</h6>
+                                <span class="badge {{ $result['is_correct'] ? 'bg-light' : 'bg-danger' }} text-dark">
+                                    {{ $result['is_correct'] ? '✓ CORRECT' : '✗ INCORRECT' }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <p class="fw-bold mb-4">{{ $result['question'] }}</p>
 
-            <!-- Exam Info -->
-            <div class="card shadow-sm">
-                <div class="card-header bg-secondary text-white">
-                    <h6 class="mb-0"><i class="fas fa-info-circle"></i> Exam Details</h6>
-                </div>
-                <div class="card-body">
-                    <p class="small mb-2">
-                        <strong>Subject:</strong><br>
-                        {{ $session->subject->name ?? 'N/A' }}
-                    </p>
-                    <p class="small mb-2">
-                        <strong>Duration:</strong><br>
-                        {{ $session->duration_minutes ?? 0 }} minutes
-                    </p>
-                    <p class="small mb-2">
-                        <strong>Date & Time:</strong><br>
-                        {{ $session->finished_at ? $session->finished_at->format('M d, Y h:i A') : 'In progress' }}
-                    </p>
-                    <p class="small mb-0">
-                        <strong>Questions:</strong><br>
-                        {{ $session->total_questions ?? 0 }}
-                    </p>
-                </div>
+                            <div class="options-review">
+                                @foreach (['A', 'B', 'C', 'D'] as $option)
+                                    @php
+                                        $optionText = $result['option_' . strtolower($option)];
+                                        $isStudentAnswer = $result['student_answer'] === $option;
+                                        $isCorrectAnswer = $result['correct_answer'] === $option;
+                                    @endphp
+                                    <div class="p-3 mb-2 rounded {{ 
+                                        $isCorrectAnswer ? 'bg-success bg-opacity-10 border border-success' : 
+                                        ($isStudentAnswer ? 'bg-danger bg-opacity-10 border border-danger' : 'bg-light')
+                                    }}">
+                                        <strong class="text-primary">{{ $option }}.</strong> {{ $optionText }}
+                                        
+                                        @if ($isCorrectAnswer)
+                                            <span class="badge bg-success float-end">✓ Correct Answer</span>
+                                        @endif
+                                        @if ($isStudentAnswer && !$isCorrectAnswer)
+                                            <span class="badge bg-danger float-end">✗ Your Answer</span>
+                                        @endif
+                                        @if ($isStudentAnswer && $isCorrectAnswer)
+                                            <span class="badge bg-success float-end">✓ Your Answer</span>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </div>
+
+                            @if ($result['explanation'])
+                                <div class="alert alert-info small mt-3 mb-0">
+                                    <strong><i class="fas fa-book"></i> Explanation:</strong>
+                                    <p class="mb-0">{{ $result['explanation'] }}</p>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                @endforeach
             </div>
         </div>
+
+        {{-- ACTION BUTTONS --}}
+        <div class="mt-4 d-flex gap-2 justify-content-center">
+            <a href="{{ route('student.results') }}" class="btn btn-primary btn-lg">
+                <i class="fas fa-list"></i> View All Results
+            </a>
+            <a href="{{ route('exam.select-subject') }}" class="btn btn-success btn-lg">
+                <i class="fas fa-redo"></i> Take Another Exam
+            </a>
+            <a href="{{ route('student.dashboard') }}" class="btn btn-secondary btn-lg">
+                <i class="fas fa-home"></i> Dashboard
+            </a>
+        </div>
+
     </div>
 </div>
-
-<style>
-    .bg-gradient {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    }
-</style>
 @endsection

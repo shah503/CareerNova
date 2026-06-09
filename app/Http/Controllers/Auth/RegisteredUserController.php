@@ -10,7 +10,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class RegisteredUserController extends Controller
@@ -26,26 +25,44 @@ class RegisteredUserController extends Controller
     /**
      * Handle an incoming registration request.
      *
-     * @throws ValidationException
+     * @throws \Illuminate\Validation\ValidationException
      */
     public function store(Request $request): RedirectResponse
     {
-        $request->validate([
+        // ✅ FIXED: Proper validation with clear error messages
+        $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
+            'role' => ['required', 'in:student,teacher,parent'], // ✅ Admin excluded
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+        ], [
+            'name.required' => 'Please enter your full name.',
+            'email.required' => 'Please enter your email address.',
+            'email.email' => 'Please enter a valid email address.',
+            'email.unique' => 'This email is already registered.',
+            'role.required' => 'Please select your role (Student, Teacher, or Parent).',
+            'role.in' => 'Please select a valid role.',
+            'password.required' => 'Please enter a password.',
+            'password.confirmed' => 'Passwords do not match.',
         ]);
 
         $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'role' => $validated['role'],
+            'status' => 'active',
+            'password' => Hash::make($validated['password']),
         ]);
 
         event(new Registered($user));
 
         Auth::login($user);
 
-        return redirect(route('dashboard', absolute: false));
+        // ✅ Redirect based on role
+        return match($user->role) {
+            'teacher' => redirect()->route('teacher.dashboard')->with('success', 'Welcome! You registered as a Teacher.'),
+            'parent' => redirect()->route('parent.dashboard')->with('success', 'Welcome! You registered as a Parent.'),
+            default => redirect()->route('student.dashboard')->with('success', 'Welcome! You registered as a Student.'),
+        };
     }
 }

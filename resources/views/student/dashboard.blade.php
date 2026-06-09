@@ -3,150 +3,74 @@
 @section('title', 'Student Dashboard')
 
 @section('content')
-<div class="container py-5">
-    <div class="row mb-4">
-        <div class="col-md-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <h2><i class="fas fa-chart-line"></i> Your Dashboard</h2>
-                <a href="/exam/select-subject" class="btn btn-primary">
-                    <i class="fas fa-pencil"></i> Take Exam
-                </a>
-            </div>
-        </div>
-    </div>
+<div class="py-12">
+    <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+        <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+            <div class="p-6 text-gray-900">
+                <h1 class="text-3xl font-bold mb-6"><i class="fas fa-chart-line"></i> Your Dashboard</h1>
 
-    <!-- Statistics Cards -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card bg-light border-left-primary">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="text-muted">Total Tests</h6>
-                            <h3 class="text-primary">{{ $analytics['total_tests'] }}</h3>
-                        </div>
-                        <i class="fas fa-pencil fa-3x text-primary opacity-25"></i>
+                <!-- Stats Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <h3 class="text-gray-600 text-sm font-medium">Total Tests</h3>
+                        <p class="text-3xl font-bold text-blue-600">{{ $stats['total_tests'] ?? 0 }}</p>
+                    </div>
+                    <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <h3 class="text-gray-600 text-sm font-medium">Completed</h3>
+                        <p class="text-3xl font-bold text-green-600">{{ $stats['completed_tests'] ?? 0 }}</p>
+                    </div>
+                    <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                        <h3 class="text-gray-600 text-sm font-medium">Average Score</h3>
+                        <p class="text-3xl font-bold text-purple-600">{{ round($stats['average_score'] ?? 0, 1) }}%</p>
+                    </div>
+                    <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                        <h3 class="text-gray-600 text-sm font-medium">Tests Passed</h3>
+                        <p class="text-3xl font-bold text-orange-600">{{ $stats['tests_passed'] ?? 0 }}</p>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <div class="col-md-3">
-            <div class="card bg-light border-left-success">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="text-muted">Correct Answers</h6>
-                            <h3 class="text-success">{{ $analytics['total_correct_answers'] }}</h3>
+                <!-- Quick Actions -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <a href="{{ route('exam.select-subject') }}" class="bg-blue-50 p-4 border border-blue-200 rounded-lg hover:shadow-md transition">
+                        <h3 class="font-semibold text-blue-700"><i class="fas fa-pencil-alt"></i> Take a Test</h3>
+                        <p class="text-gray-600 text-sm">Start a new exam</p>
+                    </a>
+                    <a href="{{ route('student.results') }}" class="bg-white p-4 border rounded-lg hover:shadow-md transition">
+                        <h3 class="font-semibold"><i class="fas fa-list"></i> My Results</h3>
+                        <p class="text-gray-600 text-sm">View past test results</p>
+                    </a>
+                    <a href="{{ route('student.analytics') }}" class="bg-white p-4 border rounded-lg hover:shadow-md transition">
+                        <h3 class="font-semibold"><i class="fas fa-chart-bar"></i> Analytics</h3>
+                        <p class="text-gray-600 text-sm">View your performance</p>
+                    </a>
+                </div>
+
+                <!-- Recent Tests -->
+                @if(isset($recentSessions) && $recentSessions->count() > 0)
+                <div class="mt-8">
+                    <h2 class="text-xl font-bold mb-4">Recent Tests</h2>
+                    <div class="space-y-2">
+                        @foreach($recentSessions as $session)
+                        <div class="flex justify-between items-center p-4 border rounded-lg">
+                            <div>
+                                <p class="font-semibold">{{ $session->mcq->question ?? 'Test Session' }}</p>
+                                <p class="text-gray-600 text-sm">{{ $session->created_at->format('M d, Y') }}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-2xl font-bold text-blue-600">{{ round($session->percentage ?? 0, 1) }}%</p>
+                                <p class="text-sm {{ ($session->is_passed ?? false) ? 'text-green-600' : 'text-red-600' }}">
+                                    {{ ($session->is_passed ?? false) ? '✓ Passed' : '✗ Failed' }}
+                                </p>
+                            </div>
                         </div>
-                        <i class="fas fa-check fa-3x text-success opacity-25"></i>
+                        @endforeach
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <div class="col-md-3">
-            <div class="card bg-light border-left-info">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="text-muted">Average Score</h6>
-                            <h3 class="text-info">{{ round($analytics['overall_percentage'], 1) }}%</h3>
-                        </div>
-                        <i class="fas fa-star fa-3x text-info opacity-25"></i>
-                    </div>
+                @else
+                <div class="mt-8 text-center text-gray-500">
+                    <p>No tests taken yet. Start with a test to see your progress here.</p>
                 </div>
-            </div>
-        </div>
-
-        <div class="col-md-3">
-            <div class="card bg-light border-left-warning">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="text-muted">Your Rank</h6>
-                            <h3 class="text-warning">#{{ $userRank ?? 'N/A' }}</h3>
-                        </div>
-                        <i class="fas fa-trophy fa-3x text-warning opacity-25"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row">
-        <!-- Recent Tests -->
-        <div class="col-md-8">
-            <div class="card shadow-sm">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="fas fa-history"></i> Recent Tests</h5>
-                </div>
-                <div class="card-body">
-                    @if ($recentSessions->count() > 0)
-                        <div class="table-responsive">
-                            <table class="table table-hover mb-0">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Subject</th>
-                                        <th>Score</th>
-                                        <th>Percentage</th>
-                                        <th>Date</th>
-                                        <th>Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach ($recentSessions as $session)
-                                        <tr>
-                                            <td>{{ $session->subject->name }}</td>
-                                            <td>{{ $session->correct_answers }}/{{ $session->total_questions }}</td>
-                                            <td>
-                                                <span class="badge bg-{{ $session->percentage >= 70 ? 'success' : ($session->percentage >= 50 ? 'warning' : 'danger') }}">
-                                                    {{ round($session->percentage, 1) }}%
-                                                </span>
-                                            </td>
-                                            {{ $session->finished_at ? $session->finished_at->format('M d, Y') : 'Not Finished' }}
-                                            <td>
-                                                <a href="/exam/session/{{ $session->id }}/result" class="btn btn-sm btn-info">
-                                                    <i class="fas fa-eye"></i> View
-                                                </a>
-                                            </td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="text-center mt-3">
-                            <a href="/student/exam-history" class="btn btn-outline-primary">
-                                View All Tests <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                    @else
-                        <p class="text-muted text-center py-4">No tests taken yet. Start with an exam now!</p>
-                    @endif
-                </div>
-            </div>
-        </div>
-
-        <!-- Weak Areas -->
-        <div class="col-md-4">
-            <div class="card shadow-sm">
-                <div class="card-header bg-warning text-white">
-                    <h5 class="mb-0"><i class="fas fa-exclamation-triangle"></i> Weak Areas</h5>
-                </div>
-                <div class="card-body">
-                    @if ($weakAreas->count() > 0)
-                        <div class="list-group list-group-flush">
-                            @foreach ($weakAreas as $area)
-                                <div class="list-group-item d-flex justify-content-between align-items-center">
-                                    <span>{{ $area->name }}</span>
-                                    <span class="badge bg-danger rounded-pill">{{ $area->wrong_count }}</span>
-                                </div>
-                            @endforeach
-                        </div>
-                    @else
-                        <p class="text-muted text-center py-4">No weak areas identified yet</p>
-                    @endif
-                </div>
+                @endif
             </div>
         </div>
     </div>

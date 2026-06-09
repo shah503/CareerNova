@@ -13,7 +13,7 @@ class CompleteSetupSeeder extends Seeder
     {
         echo "\n✅ Creating users...\n";
 
-        // Admin
+        // 1. Admin
         User::firstOrCreate(
             ['email' => 'admin@test.com'],
             [
@@ -24,7 +24,7 @@ class CompleteSetupSeeder extends Seeder
             ]
         );
 
-        // Student
+        // 2. Student
         User::firstOrCreate(
             ['email' => 'student@test.com'],
             [
@@ -35,7 +35,29 @@ class CompleteSetupSeeder extends Seeder
             ]
         );
 
-        echo "✅ Users created!\n";
+        // 🚀 ADDED: 3. Teacher
+        User::firstOrCreate(
+            ['email' => 'teacher@test.com'],
+            [
+                'name' => 'Teacher User',
+                'password' => Hash::make('password123'),
+                'role' => 'teacher',
+                'status' => 'active',
+            ]
+        );
+
+        // 🚀 ADDED: 4. Parent
+        User::firstOrCreate(
+            ['email' => 'parent@test.com'],
+            [
+                'name' => 'Parent User',
+                'password' => Hash::make('password123'),
+                'role' => 'parent',
+                'status' => 'active',
+            ]
+        );
+
+        echo "✅ All 4 Role Users created!\n";
 
         echo "\n📚 Creating subjects...\n";
 

@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, SoftDeletes;
 
     protected $fillable = [
         'name',
@@ -42,24 +43,14 @@ class User extends Authenticatable
         return $this->hasMany(AnswerLog::class);
     }
 
-    public function orders()
+    public function leaderboard()
     {
-        return $this->hasMany(Order::class);
-    }
-
-    public function subscriptions()
-    {
-        return $this->hasMany(UserSubscription::class);
+        return $this->hasOne(Leaderboard::class);
     }
 
     public function notifications()
     {
         return $this->hasMany(Notification::class);
-    }
-
-    public function leaderboard()
-    {
-        return $this->hasOne(Leaderboard::class);
     }
 
     public function aiMcqLogs()
@@ -70,6 +61,16 @@ class User extends Authenticatable
     public function createdMcqs()
     {
         return $this->hasMany(Mcq::class, 'created_by');
+    }
+
+    public function orders()
+    {
+        return $this->hasMany(Order::class);
+    }
+
+    public function subscriptions()
+    {
+        return $this->hasMany(UserSubscription::class);
     }
 
     // Scopes
@@ -96,6 +97,11 @@ class User extends Authenticatable
     public function scopeAdmin($query)
     {
         return $query->where('role', 'admin');
+    }
+
+    public function scopeParent($query)
+    {
+        return $query->where('role', 'parent');
     }
 
     // Accessors

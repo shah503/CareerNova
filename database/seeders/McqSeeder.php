@@ -10,55 +10,241 @@ class McqSeeder extends Seeder
 {
     public function run(): void
     {
-        echo "\nCreating MCQs...\n";
-
         $subjects = Subject::all();
-
-        if ($subjects->count() === 0) {
-            echo "ERROR: No subjects found!\n";
-            return;
-        }
-
-        $mcqs = [
-            ['q' => 'What is 2+2?', 'a' => '3', 'b' => '4', 'c' => '5', 'd' => '6', 'ans' => 'B'],
-            ['q' => 'What is the capital of France?', 'a' => 'London', 'b' => 'Paris', 'c' => 'Berlin', 'd' => 'Madrid', 'ans' => 'B'],
-            ['q' => 'Which planet is closest to sun?', 'a' => 'Venus', 'b' => 'Mercury', 'c' => 'Earth', 'd' => 'Mars', 'ans' => 'B'],
-            ['q' => 'What is H2O?', 'a' => 'Oxygen', 'b' => 'Water', 'c' => 'Hydrogen', 'd' => 'Salt', 'ans' => 'B'],
-            ['q' => 'Who wrote Romeo and Juliet?', 'a' => 'Milton', 'b' => 'Marlowe', 'c' => 'Shakespeare', 'd' => 'Chaucer', 'ans' => 'C'],
-            ['q' => 'What is the largest planet?', 'a' => 'Saturn', 'b' => 'Mars', 'c' => 'Jupiter', 'd' => 'Neptune', 'ans' => 'C'],
-            ['q' => 'What is the chemical symbol for Gold?', 'a' => 'Go', 'b' => 'Gd', 'c' => 'Au', 'd' => 'Ag', 'ans' => 'C'],
-            ['q' => 'How many bones in human body?', 'a' => '186', 'b' => '206', 'c' => '226', 'd' => '246', 'ans' => 'B'],
-            ['q' => 'Speed of light is?', 'a' => '2×10^8', 'b' => '3×10^8', 'c' => '4×10^8', 'd' => '5×10^8', 'ans' => 'B'],
-            ['q' => '15% of 200 is?', 'a' => '20', 'b' => '25', 'c' => '30', 'd' => '35', 'ans' => 'C'],
-        ];
-
+        $teacherId = 2; // Assuming teacher is ID 2
         $count = 0;
 
-        foreach ($subjects as $subject) {
-            foreach ($mcqs as $index => $mcq) {
-                $exists = Mcq::where('subject_id', $subject->id)
-                    ->where('question', $mcq['q'])
-                    ->exists();
+        // Biology MCQs
+        $biology = $subjects->where('code', 'BIO101')->first();
+        if ($biology) {
+            $biologyMcqs = [
+                [
+                    'question' => 'What is the basic unit of life?',
+                    'option_a' => 'Atom',
+                    'option_b' => 'Cell',
+                    'option_c' => 'Molecule',
+                    'option_d' => 'Tissue',
+                    'correct_answer' => 'B',
+                    'difficulty' => 'easy',
+                    'explanation' => 'The cell is the smallest unit of life capable of independent function.',
+                ],
+                [
+                    'question' => 'Which organelle is responsible for photosynthesis?',
+                    'option_a' => 'Mitochondria',
+                    'option_b' => 'Ribosome',
+                    'option_c' => 'Chloroplast',
+                    'option_d' => 'Nucleus',
+                    'correct_answer' => 'C',
+                    'difficulty' => 'easy',
+                    'explanation' => 'Chloroplasts are where photosynthesis occurs in plant cells.',
+                ],
+                [
+                    'question' => 'What is the process by which cells divide?',
+                    'option_a' => 'Transcription',
+                    'option_b' => 'Mitosis',
+                    'option_c' => 'Photosynthesis',
+                    'option_d' => 'Respiration',
+                    'correct_answer' => 'B',
+                    'difficulty' => 'medium',
+                    'explanation' => 'Mitosis is the process of cell division that produces two identical daughter cells.',
+                ],
+                [
+                    'question' => 'Which blood cells are responsible for carrying oxygen?',
+                    'option_a' => 'White blood cells',
+                    'option_b' => 'Red blood cells',
+                    'option_c' => 'Platelets',
+                    'option_d' => 'Plasma cells',
+                    'correct_answer' => 'B',
+                    'difficulty' => 'easy',
+                    'explanation' => 'Red blood cells contain hemoglobin which binds to oxygen.',
+                ],
+                [
+                    'question' => 'What is the function of the mitochondria?',
+                    'option_a' => 'Protein synthesis',
+                    'option_b' => 'Energy production',
+                    'option_c' => 'Photosynthesis',
+                    'option_d' => 'DNA storage',
+                    'correct_answer' => 'B',
+                    'difficulty' => 'medium',
+                    'explanation' => 'Mitochondria are the powerhouse of the cell, producing ATP for energy.',
+                ],
+            ];
 
-                if (!$exists) {
-                    Mcq::create([
-                        'subject_id' => $subject->id,
-                        'question' => $mcq['q'],
-                        'option_a' => $mcq['a'],
-                        'option_b' => $mcq['b'],
-                        'option_c' => $mcq['c'],
-                        'option_d' => $mcq['d'],
-                        'correct_answer' => $mcq['ans'],
-                        'difficulty' => ['easy', 'medium', 'hard'][$index % 3],
-                        'explanation' => 'Sample explanation for this question',
-                        'status' => 'active',
-                        'created_by' => 1,
-                    ]);
-                    $count++;
-                }
+            foreach ($biologyMcqs as $mcq) {
+                Mcq::create([
+                    'subject_id' => $biology->id,
+                    'created_by' => $teacherId,
+                    'question' => $mcq['question'],
+                    'option_a' => $mcq['option_a'],
+                    'option_b' => $mcq['option_b'],
+                    'option_c' => $mcq['option_c'],
+                    'option_d' => $mcq['option_d'],
+                    'correct_answer' => $mcq['correct_answer'],
+                    'difficulty' => $mcq['difficulty'],
+                    'explanation' => $mcq['explanation'],
+                    'status' => 'active',
+                    'verified' => true,
+                    'approved_by' => 1, // Admin ID
+                    'approved_at' => now(),
+                ]);
+                $count++;
             }
         }
 
-        echo "✅ Created $count MCQs\n\n";
+        // Chemistry MCQs
+        $chemistry = $subjects->where('code', 'CHM101')->first();
+        if ($chemistry) {
+            $chemistryMcqs = [
+                [
+                    'question' => 'What is the atomic number of Carbon?',
+                    'option_a' => '4',
+                    'option_b' => '6',
+                    'option_c' => '8',
+                    'option_d' => '12',
+                    'correct_answer' => 'B',
+                    'difficulty' => 'easy',
+                    'explanation' => 'Carbon has an atomic number of 6, meaning it has 6 protons.',
+                ],
+                [
+                    'question' => 'Which gas is used in photosynthesis?',
+                    'option_a' => 'Oxygen',
+                    'option_b' => 'Nitrogen',
+                    'option_c' => 'Carbon dioxide',
+                    'option_d' => 'Hydrogen',
+                    'correct_answer' => 'C',
+                    'difficulty' => 'easy',
+                    'explanation' => 'Plants use CO2 from the atmosphere for photosynthesis.',
+                ],
+                [
+                    'question' => 'What is the pH of a neutral solution?',
+                    'option_a' => '0',
+                    'option_b' => '7',
+                    'option_c' => '14',
+                    'option_d' => '10',
+                    'correct_answer' => 'B',
+                    'difficulty' => 'easy',
+                    'explanation' => 'A pH of 7 is neutral on the pH scale (0-14).',
+                ],
+                [
+                    'question' => 'What is the most abundant element in the universe?',
+                    'option_a' => 'Oxygen',
+                    'option_b' => 'Carbon',
+                    'option_c' => 'Hydrogen',
+                    'option_d' => 'Helium',
+                    'correct_answer' => 'C',
+                    'difficulty' => 'medium',
+                    'explanation' => 'Hydrogen is the most abundant element in the universe.',
+                ],
+                [
+                    'question' => 'What type of bond is formed between two hydrogen atoms?',
+                    'option_a' => 'Ionic bond',
+                    'option_b' => 'Covalent bond',
+                    'option_c' => 'Metallic bond',
+                    'option_d' => 'Hydrogen bond',
+                    'correct_answer' => 'B',
+                    'difficulty' => 'medium',
+                    'explanation' => 'Two hydrogen atoms form a covalent bond by sharing electrons.',
+                ],
+            ];
+
+            foreach ($chemistryMcqs as $mcq) {
+                Mcq::create([
+                    'subject_id' => $chemistry->id,
+                    'created_by' => $teacherId,
+                    'question' => $mcq['question'],
+                    'option_a' => $mcq['option_a'],
+                    'option_b' => $mcq['option_b'],
+                    'option_c' => $mcq['option_c'],
+                    'option_d' => $mcq['option_d'],
+                    'correct_answer' => $mcq['correct_answer'],
+                    'difficulty' => $mcq['difficulty'],
+                    'explanation' => $mcq['explanation'],
+                    'status' => 'active',
+                    'verified' => true,
+                    'approved_by' => 1,
+                    'approved_at' => now(),
+                ]);
+                $count++;
+            }
+        }
+
+        // Physics MCQs
+        $physics = $subjects->where('code', 'PHY101')->first();
+        if ($physics) {
+            $physicsMcqs = [
+                [
+                    'question' => 'What is the SI unit of force?',
+                    'option_a' => 'Joule',
+                    'option_b' => 'Watt',
+                    'option_c' => 'Newton',
+                    'option_d' => 'Pascal',
+                    'correct_answer' => 'C',
+                    'difficulty' => 'easy',
+                    'explanation' => 'Newton (N) is the SI unit of force.',
+                ],
+                [
+                    'question' => 'What is the speed of light?',
+                    'option_a' => '3 × 10^8 m/s',
+                    'option_b' => '3 × 10^5 m/s',
+                    'option_c' => '3 × 10^6 m/s',
+                    'option_d' => '3 × 10^10 m/s',
+                    'correct_answer' => 'A',
+                    'difficulty' => 'easy',
+                    'explanation' => 'The speed of light is approximately 3 × 10^8 m/s or 300,000 km/s.',
+                ],
+                [
+                    'question' => 'Newton\'s first law of motion states that:',
+                    'option_a' => 'Force equals mass times acceleration',
+                    'option_b' => 'An object at rest stays at rest unless acted upon by force',
+                    'option_c' => 'For every action there is an equal and opposite reaction',
+                    'option_d' => 'Energy cannot be created or destroyed',
+                    'correct_answer' => 'B',
+                    'difficulty' => 'medium',
+                    'explanation' => 'This is Newton\'s law of inertia.',
+                ],
+                [
+                    'question' => 'What is the SI unit of energy?',
+                    'option_a' => 'Watt',
+                    'option_b' => 'Joule',
+                    'option_c' => 'Newton',
+                    'option_d' => 'Pascal',
+                    'correct_answer' => 'B',
+                    'difficulty' => 'easy',
+                    'explanation' => 'Joule (J) is the SI unit of energy.',
+                ],
+                [
+                    'question' => 'What is the relationship between velocity and acceleration?',
+                    'option_a' => 'Velocity is the derivative of acceleration',
+                    'option_b' => 'Acceleration is the derivative of velocity',
+                    'option_c' => 'They are the same thing',
+                    'option_d' => 'There is no relationship',
+                    'correct_answer' => 'B',
+                    'difficulty' => 'medium',
+                    'explanation' => 'Acceleration is the rate of change of velocity with respect to time.',
+                ],
+            ];
+
+            foreach ($physicsMcqs as $mcq) {
+                Mcq::create([
+                    'subject_id' => $physics->id,
+                    'created_by' => $teacherId,
+                    'question' => $mcq['question'],
+                    'option_a' => $mcq['option_a'],
+                    'option_b' => $mcq['option_b'],
+                    'option_c' => $mcq['option_c'],
+                    'option_d' => $mcq['option_d'],
+                    'correct_answer' => $mcq['correct_answer'],
+                    'difficulty' => $mcq['difficulty'],
+                    'explanation' => $mcq['explanation'],
+                    'status' => 'active',
+                    'verified' => true,
+                    'approved_by' => 1,
+                    'approved_at' => now(),
+                ]);
+                $count++;
+            }
+        }
+
+        echo "✅ Created $count MCQs\n";
     }
 }

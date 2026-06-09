@@ -1,0 +1,67 @@
+# CareerNova Deployment Checklist
+
+## Pre-Deployment
+
+### Security
+- [ ] Change admin password (currently: admin123456)
+- [ ] Set `.env` variables correctly
+- [ ] APP_DEBUG=false
+- [ ] APP_ENV=production
+- [ ] Set secure APP_KEY
+- [ ] Enable HTTPS only
+- [ ] Set CSRF protection
+
+### Database
+- [ ] Run migrations on production
+- [ ] Seed sample data
+- [ ] Verify all tables created
+- [ ] Backup production database
+
+### Code
+- [ ] Run tests: `php artisan test`
+- [ ] No console errors
+- [ ] No database errors
+- [ ] Code is optimized: `php artisan optimize`
+
+### Files
+- [ ] `/storage` directory is writable
+- [ ] `/bootstrap/cache` directory is writable
+- [ ] `.env` file is present on server
+- [ ] Public files are accessible
+
+### Configuration
+- [ ] Mail driver configured (for notifications)
+- [ ] Payment gateway configured (if needed)
+- [ ] Caching configured
+- [ ] Queue driver configured
+
+## Deployment Steps
+
+1. Clone repository
+2. Install dependencies: `composer install --no-dev`
+3. Copy `.env` file
+4. Generate app key: `php artisan key:generate`
+5. Run migrations: `php artisan migrate --force`
+6. Seed data: `php artisan db:seed`
+7. Cache config: `php artisan config:cache`
+8. Cache routes: `php artisan route:cache`
+9. Cache views: `php artisan view:cache`
+10. Set permissions: `chmod -R 755 storage bootstrap/cache`
+11. Install Vite assets: `npm install && npm run build`
+12. Start application
+
+## Post-Deployment
+
+- [ ] Test login with all roles
+- [ ] Test exam system
+- [ ] Monitor error logs
+- [ ] Monitor performance
+- [ ] Set up automated backups
+- [ ] Monitor user activity
+
+## Monitoring
+
+- [ ] Set up error tracking (Sentry/Rollbar)
+- [ ] Set up performance monitoring
+- [ ] Set up uptime monitoring
+- [ ] Set up log aggregation

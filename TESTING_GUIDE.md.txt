@@ -1,0 +1,122 @@
+# CareerNova Testing Guide
+
+## 1. User Registration & Login
+
+### Test Cases:
+- [ ] Register as Student
+  - Go to `/register`
+  - Fill form with role = "Student"
+  - Verify redirects to `/student/dashboard`
+
+- [ ] Register as Teacher
+  - Fill form with role = "Teacher"
+  - Verify redirects to `/teacher/dashboard`
+
+- [ ] Register as Parent
+  - Fill form with role = "Parent"
+  - Verify redirects to `/parent/dashboard`
+
+- [ ] Verify Admin option is NOT in registration form
+  - Go to `/register`
+  - Check role dropdown - should only have Student, Teacher, Parent
+
+- [ ] Login with different credentials
+  - Admin: admin@careernova.com / admin123456
+  - Teacher: ahmed.khan@careernova.com / password123
+  - Student: ali.ahmed@student.com / password123
+  - Parent: rashid.ahmed@parent.com / password123
+
+## 2. Dashboard Access
+
+### Student Dashboard:
+- [ ] Navigate to `/student/dashboard`
+- [ ] Verify stats display correctly
+- [ ] Check "Take a Test" button works
+- [ ] Check "My Results" link
+- [ ] Check "Analytics" link
+
+### Teacher Dashboard:
+- [ ] Navigate to `/teacher/dashboard`
+- [ ] Verify MCQ stats
+- [ ] Check "Create MCQ" button
+- [ ] Check "My MCQs" link
+- [ ] Check "Results" link
+
+### Admin Dashboard:
+- [ ] Navigate to `/admin/dashboard`
+- [ ] Verify all statistics display
+- [ ] Check all action buttons work
+- [ ] Verify "Manage Admins" section
+
+### Parent Dashboard:
+- [ ] Navigate to `/parent/dashboard`
+- [ ] Verify feature note displays
+- [ ] Check empty state message
+
+## 3. Exam System
+
+### Taking an Exam:
+- [ ] Go to Student Dashboard
+- [ ] Click "Take a Test"
+- [ ] Select a Subject
+- [ ] Click "Start Exam"
+- [ ] Verify questions load
+- [ ] Select answers for all questions
+- [ ] Submit exam
+- [ ] Verify results page displays
+- [ ] Check score calculation
+- [ ] Verify answer review shows correct/wrong
+
+### Exam Features:
+- [ ] Timer displays correctly
+- [ ] Auto-save works (check browser console)
+- [ ] Cannot leave exam without submitting
+- [ ] Results show percentage correctly
+- [ ] Results show which answers were correct/wrong
+
+## 4. Admin Functions
+
+### Manage Users:
+- [ ] Go to Admin Dashboard
+- [ ] Click "Manage Users"
+- [ ] Filter by role (Student, Teacher, Parent)
+- [ ] Click edit on a user
+- [ ] Update user details
+- [ ] Verify update was saved
+
+### Review MCQs:
+- [ ] Go to Admin Dashboard
+- [ ] Click "Review MCQs"
+- [ ] Verify pending MCQs display
+- [ ] Click verify/flag buttons
+- [ ] Verify status updates
+
+### Create Admin:
+- [ ] Go to Admin Dashboard
+- [ ] Click "Manage Admins"
+- [ ] Click "Create New Admin"
+- [ ] Fill form and submit
+- [ ] Verify new admin can login
+
+## 5. Data Persistence
+
+- [ ] Student exam results are saved
+- [ ] Teacher MCQs are saved
+- [ ] User updates are persisted
+- [ ] Database relationships work correctly
+
+## 6. Error Handling
+
+- [ ] 404 for non-existent routes
+- [ ] 403 for unauthorized access
+- [ ] Form validation shows errors
+- [ ] Error messages are helpful
+
+## 7. Performance
+
+- [ ] Pages load in < 2 seconds
+- [ ] Exam pages load quickly
+- [ ] No console errors
+- [ ] No database errors in logs
+
+## Test Data Credentials

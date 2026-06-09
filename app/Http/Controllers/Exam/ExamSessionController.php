@@ -113,7 +113,7 @@ class ExamSessionController extends Controller
         $validated = $request->validate([
             'mcq_id' => 'required|exists:mcqs,id',
             'selected_answer' => 'nullable|in:A,B,C,D',
-            'time_taken' => 'nullable|integer',
+            'time_taken_minutes' => 'nullable|integer',
         ]);
 
         try {
@@ -121,7 +121,7 @@ class ExamSessionController extends Controller
                 $session,
                 (int) $validated['mcq_id'],
                 $validated['selected_answer'],
-                (int) ($validated['time_taken'] ?? 0)
+                (int) ($validated['time_taken_minutes'] ?? 0)
             );
 
             return response()->json([

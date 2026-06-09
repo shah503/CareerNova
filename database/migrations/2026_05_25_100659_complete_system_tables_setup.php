@@ -78,7 +78,7 @@ return new class extends Migration {
             // Add missing columns if they don't exist
             if (!Schema::hasColumn('exam_sessions', 'mcq_sequence')) {
                 Schema::table('exam_sessions', function (Blueprint $table) {
-                    $table->json('mcq_sequence')->nullable()->after('duration_minutes');
+                    $table->json('mcq_sequence')->nullable();
                 });
             }
 
@@ -90,7 +90,7 @@ return new class extends Migration {
 
             if (!Schema::hasColumn('exam_sessions', 'time_taken_minutes')) {
                 Schema::table('exam_sessions', function (Blueprint $table) {
-                    $table->integer('time_taken_minutes')->default(0)->after('duration_minutes');
+                    $table->integer('time_taken_minutes')->default(0);
                 });
             }
 
@@ -116,7 +116,7 @@ return new class extends Migration {
             // Add question_order if it doesn't exist
             if (!Schema::hasColumn('answer_logs', 'question_order')) {
                 Schema::table('answer_logs', function (Blueprint $table) {
-                    $table->integer('question_order')->default(0)->after('time_taken_seconds');
+                    $table->integer('question_order')->default(0);
                 });
             }
 

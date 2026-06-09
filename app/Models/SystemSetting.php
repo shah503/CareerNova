@@ -2,23 +2,22 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class SystemSetting extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
-        'module_name', 'enabled', 'configuration', 'description', 'updated_by'
+        'module_name',
+        'enabled',
+        'description',
     ];
 
     protected $casts = [
         'enabled' => 'boolean',
-        'configuration' => 'array',
     ];
-
-    public function updater()
-    {
-        return $this->belongsTo(User::class, 'updated_by');
-    }
 
     public static function isModuleEnabled($moduleName)
     {

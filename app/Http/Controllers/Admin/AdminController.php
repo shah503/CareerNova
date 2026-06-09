@@ -7,19 +7,13 @@ use App\Models\User;
 use App\Models\ExamSession;
 use App\Models\Subject;
 use App\Models\Mcq;
-use App\Services\AnalyticsService;
-use App\Services\SettingService;
 use Illuminate\Http\Request;
 
 class AdminController extends Controller
 {
-    protected $analyticsService;
-    protected $settingService;
-
-    public function __construct(AnalyticsService $analyticsService, SettingService $settingService)
+    public function subjects()
     {
-        $this->analyticsService = $analyticsService;
-        $this->settingService = $settingService;
+    return view('admin.subjects');
     }
 
     /**
@@ -27,20 +21,18 @@ class AdminController extends Controller
      */
     public function dashboard()
     {
-        // Check if system is active
-        $systemActive = $this->settingService->isSystemActive();
-
         $stats = [
             'total_students' => User::where('role', 'student')->count(),
             'total_teachers' => User::where('role', 'teacher')->count(),
-            'total_subjects' => Subject::where('status', 'active')->count(),
-            'total_mcqs' => Mcq::where('status', 'active')->count(),
-            'pending_reviews' => Mcq::where('status', 'pending_review')->count(),
-            'total_tests_conducted' => ExamSession::where('status', 'completed')->count(),
-            'avg_score' => ExamSession::where('status', 'completed')->avg('percentage'),
+            'total_parents' => User::where('role', 'parent')->count(),
+            'total_subjects' => Subject::count(),
+            'total_mcqs' => Mcq::count(),
+            'pending_review' => Mcq::where('status', 'pending_review')->count(),
+            'total_tests' => ExamSession::count(),
+            'avg_score' => ExamSession::where('status', 'completed')->avg('percentage') ?? 0,
         ];
 
-        return view('admin.dashboard', compact('stats', 'systemActive'));
+        return view('admin.dashboard', compact('stats'));
     }
 
     /**
@@ -61,7 +53,7 @@ class AdminController extends Controller
     }
 
     /**
-     * Edit user status
+     * Edit user
      */
     public function editUser(User $user)
     {
@@ -74,7 +66,7 @@ class AdminController extends Controller
     public function updateUser(Request $request, User $user)
     {
         $validated = $request->validate([
-            'name' => 'required|string',
+            'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email,' . $user->id,
             'role' => 'required|in:admin,teacher,student,parent',
             'status' => 'required|in:active,inactive,suspended',
@@ -84,91 +76,93 @@ class AdminController extends Controller
 
         $user->update($validated);
 
-        return redirect('/admin/users')->with('success', 'User updated successfully!');
+        return redirect()->route('admin.users.list')->with('success', 'User updated successfully');
     }
 
     /**
-     * Delete user
+     * List MCQs
      */
-    public function deleteUser(User $user)
+    public function mcqs()
     {
-        $user->delete();
-        return redirect('/admin/users')->with('success', 'User deleted successfully!');
+        $mcqs = Mcq::with('creator', 'subject')
+            ->latest()
+            ->paginate(15);
+
+        return view('admin.mcqs.list', compact('mcqs'));
     }
 
     /**
-     * List MCQs pending review
+     * Verify MCQ
      */
-    public function pendingMcqs()
+    public function verifyMcq(Mcq $mcq)
     {
-        $mcqs = Mcq::where('status', 'pending_review')
-            ->with('subject', 'creator')
-            ->paginate(10);
+        $mcq->update([
+            'status' => 'active',
+            'verified' => true,
+            'needs_review' => false,
+            'approved_by' => auth()->id(),
+            'approved_at' => now(),
+        ]);
 
-        return view('admin.mcqs.pending', compact('mcqs'));
+        return back()->with('success', 'MCQ verified successfully');
     }
 
     /**
-     * Approve MCQ
+     * Flag MCQ for review
      */
-    public function approveMcq(Mcq $mcq)
+    public function flagMcq(Mcq $mcq)
     {
-        $mcq->update(['status' => 'active']);
-        return back()->with('success', 'MCQ approved!');
+        $mcq->update([
+            'status' => 'pending_review',
+            'needs_review' => true,
+        ]);
+
+        return back()->with('success', 'MCQ flagged for review');
     }
 
     /**
-     * Reject MCQ
+     * Delete MCQ
      */
-    public function rejectMcq(Mcq $mcq)
+    public function deleteMcq(Mcq $mcq)
     {
-        $mcq->update(['status' => 'inactive']);
-        return back()->with('success', 'MCQ rejected!');
+        $mcq->delete();
+        return back()->with('success', 'MCQ deleted successfully');
     }
 
     /**
-     * View system analytics
+     * View analytics
      */
     public function analytics()
     {
-        $totalTests = ExamSession::where('status', 'completed')->count();
-        $totalStudents = User::where('role', 'student')->count();
-        $averageScore = ExamSession::where('status', 'completed')->avg('percentage');
-        $leaderboard = $this->analyticsService->getLeaderboard('overall', 10);
+        $stats = [
+            'total_tests' => ExamSession::count(),
+            'total_students' => User::where('role', 'student')->count(),
+            'avg_score' => ExamSession::where('status', 'completed')->avg('percentage') ?? 0,
+            'passed_tests' => ExamSession::where('percentage', '>=', 50)->count(),
+            'failed_tests' => ExamSession::where('percentage', '<', 50)->count(),
+        ];
 
-        return view('admin.analytics', compact('totalTests', 'totalStudents', 'averageScore', 'leaderboard'));
+        $subjectStats = ExamSession::with('subject')
+            ->where('status', 'completed')
+            ->get()
+            ->groupBy('subject_id')
+            ->map(function ($sessions, $subjectId) {
+                $subject = Subject::find($subjectId);
+                return [
+                    'name' => $subject->name ?? 'Unknown',
+                    'count' => $sessions->count(),
+                    'avg_score' => $sessions->avg('percentage'),
+                ];
+            });
+
+        return view('admin.analytics', compact('stats', 'subjectStats'));
     }
 
     /**
-     * Toggle system status
+     * System settings
      */
-    public function toggleSystem(Request $request)
+    public function settings()
     {
-        $status = $request->query('status');
-
-        if ($status === 'on') {
-            $this->settingService->enableFeature('system_active');
-            return redirect('/admin/settings')->with('success', 'System activated!');
-        } else {
-            $this->settingService->disableFeature('system_active');
-            return redirect('/admin/settings')->with('success', 'System deactivated!');
-        }
-    }
-
-    /**
-     * Toggle features
-     */
-    public function toggleFeature(Request $request)
-    {
-        $feature = $request->input('feature');
-        $status = $request->input('status');
-
-        if ($status === 'enable') {
-            $this->settingService->enableFeature($feature);
-            return response()->json(['message' => 'Feature enabled']);
-        } else {
-            $this->settingService->disableFeature($feature);
-            return response()->json(['message' => 'Feature disabled']);
-        }
+        return view('admin.settings');
     }
 }

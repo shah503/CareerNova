@@ -5,244 +5,294 @@ namespace App\Http\Controllers;
 use App\Models\Mcq;
 use App\Models\ExamSession;
 use App\Models\AnswerLog;
-use App\Models\StudentPoints;
-use App\Models\SystemSetting;
+use App\Models\Subject;
+use App\Models\QuestionProgress;
+use App\Services\ExamService;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
 
 class McqController extends Controller
 {
-    /**
-     * Show test page with locked session
-     */
-    public function index()
+    protected $examService;
+
+    public function __construct(ExamService $examService)
     {
-        // Check if chatbot is enabled
-        $chatbotEnabled = SystemSetting::isModuleEnabled('chatbot');
-
-        if (session('exam_submitted')) {
-            return redirect('/student-dashboard');
-        }
-
-        if (session()->has('locked_mcqs')) {
-            $mcqs = collect(session('locked_mcqs'));
-            $started = true;
-            $timeRemaining = session('time_remaining', 0);
-        } else {
-            $mcqs = $this->generateMcqs();
-            $started = false;
-            $timeRemaining = $mcqs->count() * 60;
-        }
-
-        return view('mcqs', compact('mcqs', 'started', 'timeRemaining', 'chatbotEnabled'));
+        $this->examService = $examService;
     }
 
     /**
-     * Start test - Lock session
+     * Select subject to take exam
+     */
+    public function selectSubject()
+    {
+        $subjects = Subject::where('status', 'active')
+            ->withCount(['mcqs' => function ($q) {
+                $q->where('status', 'active');
+            }])
+            ->get();
+
+        return view('exam.select-subject', compact('subjects'));
+    }
+
+    /**
+     * Show MCQs for exam
+     */
+    public function index(Request $request)
+    {
+        $subjectId = $request->query('subject_id');
+
+        if (!$subjectId) {
+            return redirect()->route('exam.select-subject')->with('error', 'Please select a subject');
+        }
+
+        // Get active MCQs
+        $mcqs = Mcq::where('subject_id', $subjectId)
+            ->where('status', 'active')
+            ->inRandomOrder()
+            ->get();
+
+        if ($mcqs->isEmpty()) {
+            return redirect()->route('exam.select-subject')
+                ->with('error', 'No questions available for this subject');
+        }
+
+        // Check if there's an existing exam session
+        $existingExam = ExamSession::where('user_id', auth()->id())
+            ->where('subject_id', $subjectId)
+            ->where('status', 'in_progress')
+            ->latest()
+            ->first();
+
+        if ($existingExam && (now()->timestamp - $existingExam->started_at->timestamp) < 3600) {
+            // Resume existing exam if within 1 hour
+            $recovery = $this->examService->getSessionRecoveryData($existingExam->id);
+            session([
+                'exam_session_id' => $existingExam->id,
+                'exam_mcqs' => $mcqs->toArray(),
+                'exam_subject_id' => $subjectId,
+                'exam_started' => true,
+                'exam_start_time' => $existingExam->started_at->timestamp,
+                'exam_time_remaining' => $recovery['remaining_time'],
+                'exam_answers' => $this->getExistingAnswers($existingExam->id),
+            ]);
+
+            return view('exam.index', [
+                'mcqs' => $mcqs,
+                'exam_started' => true,
+                'exam_session_id' => $existingExam->id,
+                'recovery' => $recovery,
+                'is_recovery' => true,
+            ]);
+        }
+
+        // Store in session
+        session([
+            'exam_mcqs' => $mcqs->toArray(),
+            'exam_subject_id' => $subjectId,
+            'exam_started' => false,
+        ]);
+
+        return view('exam.index', [
+            'mcqs' => $mcqs,
+            'exam_started' => false,
+        ]);
+    }
+
+    /**
+     * Start exam
      */
     public function startTest(Request $request)
     {
-        if (session()->has('locked_mcqs')) {
-            return redirect('/mcqs');
+        $mcqs = session('exam_mcqs');
+        $subjectId = session('exam_subject_id');
+
+        if (!$mcqs || empty($mcqs)) {
+            return redirect()->route('exam.select-subject')
+                ->with('error', 'Session expired. Please select subject again.');
         }
 
-        $mcqs = session('current_mcqs', $this->generateMcqs());
-        $totalMcqs = $mcqs->count();
-        $timeInSeconds = $totalMcqs * 60;
+        $totalQuestions = count($mcqs);
+        $timeInSeconds = $totalQuestions * 60;
+
+        // Create exam session
+        $examSession = $this->examService->initializeExamSession(
+            auth()->id(),
+            $subjectId,
+            collect($mcqs)
+        );
 
         session([
-            'locked_mcqs' => $mcqs,
-            'started' => true,
-            'start_time' => now(),
-            'time_remaining' => $timeInSeconds
+            'exam_session_id' => $examSession->id,
+            'exam_started' => true,
+            'exam_start_time' => now()->timestamp,
+            'exam_time_remaining' => $timeInSeconds,
+            'exam_answers' => [],
         ]);
 
-        session()->forget('current_mcqs');
-
-        return redirect('/mcqs');
+        return redirect()->route('exam.index', ['subject_id' => $subjectId])
+            ->with('success', 'Exam started!');
     }
 
     /**
-     * Auto-save answer
+     * Save answer with question progress
      */
     public function saveAnswer(Request $request)
     {
-        if (!session()->has('locked_mcqs')) {
-            return response()->json(['error' => 'Test not started'], 403);
+        if (!session('exam_started')) {
+            return response()->json(['error' => 'Exam not started'], 403);
         }
 
         $validated = $request->validate([
             'question_id' => 'required|integer',
             'answer' => 'nullable|in:A,B,C,D',
-            'is_review' => 'boolean'
+            'question_number' => 'required|integer',
+            'mark_for_review' => 'boolean',
         ]);
 
-        try {
-            AnswerLog::updateOrCreate(
-                [
-                    'user_id' => auth()->id(),
-                    'mcq_id' => $validated['question_id']
-                ],
-                [
-                    'answer' => $validated['answer'],
-                    'is_review' => $validated['is_review'] ?? false,
-                    'answered_at' => now()
-                ]
-            );
+        $examSessionId = session('exam_session_id');
+        $answers = session('exam_answers', []);
+        $answers[$validated['question_id']] = $validated['answer'];
+        session(['exam_answers' => $answers]);
 
-            return response()->json(['success' => true]);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'Save failed'], 500);
+        // Update question progress
+        if ($validated['answer']) {
+            $status = $validated['mark_for_review'] ? 'answered_marked' : 'answered';
+        } else {
+            $status = $validated['mark_for_review'] ? 'marked' : 'visited';
         }
+
+        $this->examService->updateQuestionProgress(
+            $examSessionId,
+            $validated['question_number'],
+            $status,
+            $validated['answer']
+        );
+
+        // Update last saved time
+        $examSession = ExamSession::find($examSessionId);
+        $examSession->update(['last_saved_at' => now()]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Answer saved',
+            'timestamp' => now()->format('H:i:s A'),
+        ]);
     }
 
     /**
-     * Submit test - Complete with validation
+     * Mark question for review
+     */
+    public function markForReview(Request $request)
+    {
+        $validated = $request->validate([
+            'question_number' => 'required|integer',
+        ]);
+
+        $examSessionId = session('exam_session_id');
+        $this->examService->markForReview($examSessionId, $validated['question_number']);
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Get exam progress
+     */
+    public function getProgress(Request $request)
+    {
+        $examSessionId = session('exam_session_id');
+        $questionProgress = QuestionProgress::where('exam_session_id', $examSessionId)
+            ->get();
+
+        $stats = [
+            'answered' => $questionProgress->whereIn('status', ['answered', 'answered_marked'])->count(),
+            'marked' => $questionProgress->whereIn('status', ['marked', 'answered_marked'])->count(),
+            'not_visited' => $questionProgress->where('status', 'not_visited')->count(),
+            'visited' => $questionProgress->where('status', 'visited')->count(),
+        ];
+
+        return response()->json($stats);
+    }
+
+    /**
+     * Submit exam
      */
     public function submitTest(Request $request)
     {
-        if (!session()->has('locked_mcqs')) {
-            return redirect('/mcqs');
+        $mcqs = session('exam_mcqs');
+        $answers = session('exam_answers', []);
+        $examSessionId = session('exam_session_id');
+
+        if (!$mcqs) {
+            return redirect()->route('exam.select-subject')
+                ->with('error', 'Exam session expired');
         }
 
-        if (session('exam_submitted')) {
-            return redirect('/student-dashboard');
-        }
+        // Calculate results
+        $calculation = $this->examService->calculateResults($examSessionId, $answers, $mcqs);
 
-        $score = 0;
-        $correct_answers = 0;
-        $results = [];
-        $answers = $request->answers ?? [];
-        $lockedMcqs = session('locked_mcqs');
-        $subjectStats = [];
-
-        $startTime = session('start_time');
-        $timeTaken = now()->diffInSeconds($startTime);
-
-        foreach ($answers as $questionId => $studentAnswer) {
-            $mcq = $lockedMcqs->firstWhere('id', $questionId);
-
-            if (!$mcq) continue;
-
-            $isCorrect = $studentAnswer == $mcq->correct_option;
-
-            if ($isCorrect) {
-                $score++;
-                $correct_answers++;
-            }
-
-            if (!isset($subjectStats[$mcq->subject])) {
-                $subjectStats[$mcq->subject] = ['correct' => 0, 'total' => 0];
-            }
-            $subjectStats[$mcq->subject]['total']++;
-            if ($isCorrect) {
-                $subjectStats[$mcq->subject]['correct']++;
-            }
-
-            $results[] = [
-                'question_id' => $mcq->id,
-                'question' => $mcq->question,
-                'option_a' => $mcq->option_a,
-                'option_b' => $mcq->option_b,
-                'option_c' => $mcq->option_c,
-                'option_d' => $mcq->option_d,
-                'student_answer' => $studentAnswer,
-                'correct_option' => $mcq->correct_option,
-                'explanation' => $mcq->explanation,
-                'subject' => $mcq->subject,
-                'is_correct' => $isCorrect
-            ];
-        }
-
-        // Create exam session
-        $examSession = auth()->user()->examSessions()->create([
-            'total_questions' => count($results),
-            'score' => $score,
-            'correct_answers' => $correct_answers,
-            'time_taken' => $timeTaken,
-            'answers' => json_encode($answers),
-            'subject_breakdown' => json_encode($subjectStats),
-            'status' => 'submitted',
-            'completed_at' => now()
-        ]);
-
-        // Award points
-        StudentPoints::awardPoints(auth()->id(), $correct_answers, count($results));
-
-        // Update user stats
-        auth()->user()->update([
-            'total_tests' => auth()->user()->total_tests + 1,
-            'average_score' => (auth()->user()->average_score * (auth()->user()->total_tests - 1) + ($correct_answers / count($results) * 100)) / auth()->user()->total_tests,
-        ]);
+        // Save results
+        $this->examService->saveResults($examSessionId, $calculation, $answers, $mcqs);
 
         // Clear session
-        session()->forget(['locked_mcqs', 'started', 'start_time', 'time_remaining', 'current_mcqs']);
+        session()->forget([
+            'exam_mcqs',
+            'exam_started',
+            'exam_start_time',
+            'exam_answers',
+            'exam_subject_id',
+            'exam_time_remaining',
+            'exam_session_id',
+        ]);
 
-        // Lock for security
-        session(['exam_submitted' => true, 'exam_session_id' => $examSession->id]);
-
-        return view('result', compact('score', 'results', 'subjectStats', 'examSession'));
+        return redirect()->route('exam.result', $examSessionId)
+            ->with('success', 'Exam submitted successfully!');
     }
 
     /**
-     * Generate MCQs with proper distribution
+     * Show exam result
      */
-    private function generateMcqs()
+    public function result(ExamSession $examSession)
     {
-        $biologyEasy = Mcq::where('subject', 'Biology')
-            ->where('difficulty', 'Easy')
-            ->verified()
-            ->inRandomOrder()
-            ->take(6)
+        if ($examSession->user_id !== auth()->id()) {
+            abort(403, 'Unauthorized');
+        }
+
+        $answerLogs = AnswerLog::where('exam_session_id', $examSession->id)
+            ->with('mcq')
             ->get();
 
-        $biologyMedium = Mcq::where('subject', 'Biology')
-            ->where('difficulty', 'Medium')
-            ->verified()
-            ->inRandomOrder()
-            ->take(6)
-            ->get();
+        $results = $answerLogs->map(function($log) {
+            return [
+                'question' => $log->mcq->question,
+                'option_a' => $log->mcq->option_a,
+                'option_b' => $log->mcq->option_b,
+                'option_c' => $log->mcq->option_c,
+                'option_d' => $log->mcq->option_d,
+                'student_answer' => $log->selected_answer,
+                'correct_answer' => $log->correct_answer,
+                'explanation' => $log->mcq->explanation,
+                'is_correct' => $log->is_correct,
+            ];
+        });
 
-        $biologyHard = Mcq::where('subject', 'Biology')
-            ->where('difficulty', 'Hard')
-            ->verified()
-            ->inRandomOrder()
-            ->take(5)
-            ->get();
+        // Get user's ranking
+        $userRank = auth()->user()->leaderboard?->rank ?? 'N/A';
 
-        $biology = $biologyEasy->merge($biologyMedium)->merge($biologyHard);
-
-        $chemistry = Mcq::where('subject', 'Chemistry')
-            ->verified()
-            ->inRandomOrder()
-            ->take(13)
-            ->get();
-
-        $physics = Mcq::where('subject', 'Physics')
-            ->verified()
-            ->inRandomOrder()
-            ->take(13)
-            ->get();
-
-        $english = Mcq::where('subject', 'English')
-            ->verified()
-            ->inRandomOrder()
-            ->take(5)
-            ->get();
-
-        $reasoning = Mcq::where('subject', 'Analytical Reasoning')
-            ->verified()
-            ->inRandomOrder()
-            ->take(2)
-            ->get();
-
-        return $biology->merge($chemistry)->merge($physics)->merge($english)->merge($reasoning)->shuffle();
+        return view('exam.result', compact('examSession', 'results', 'userRank'));
     }
 
     /**
-     * Add query scope to check verified status
+     * Get existing answers for recovery
      */
-    public static function scopeVerified($query)
+    private function getExistingAnswers($examSessionId)
     {
-        return $query->where('verified', true)->where('needs_review', false);
+        $answerLogs = AnswerLog::where('exam_session_id', $examSessionId)->get();
+        $answers = [];
+
+        foreach ($answerLogs as $log) {
+            $answers[$log->mcq_id] = $log->selected_answer;
+        }
+
+        return $answers;
     }
 }

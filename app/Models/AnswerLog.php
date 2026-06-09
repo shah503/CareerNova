@@ -2,40 +2,40 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class AnswerLog extends Model
 {
+    use HasFactory, SoftDeletes;
+
     protected $fillable = [
-        'exam_session_id',
+        'user_id',
         'mcq_id',
-        'selected_answer',
-        'correct_answer',
-        'is_correct',
-        'time_taken',
-        'order',
+        'exam_session_id',
+        'answer',
+        'is_review',
+        'answered_at',
     ];
 
     protected $casts = [
-        'is_correct' => 'boolean',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
+        'answered_at' => 'datetime',
     ];
 
-    /**
-     * Relationship: Belongs to ExamSession
-     */
-    public function examSession(): BelongsTo
+    // Relationships
+    public function user()
     {
-        return $this->belongsTo(ExamSession::class);
+        return $this->belongsTo(User::class);
     }
 
-    /**
-     * Relationship: Belongs to MCQ
-     */
-    public function mcq(): BelongsTo
+    public function mcq()
     {
         return $this->belongsTo(Mcq::class);
+    }
+
+    public function examSession()
+    {
+        return $this->belongsTo(ExamSession::class);
     }
 }

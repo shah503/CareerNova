@@ -3,83 +3,103 @@
 @section('title', 'Edit User')
 
 @section('content')
-<div class="container py-5">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card shadow-lg">
-                <div class="card-header bg-primary text-white">
-                    <h4 class="mb-0"><i class="fas fa-user-edit"></i> Edit User</h4>
+<div class="py-12">
+    <div class="max-w-2xl mx-auto sm:px-6 lg:px-8">
+        <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h1 class="text-3xl font-bold">Edit User</h1>
+                    <a href="{{ route('admin.users.list') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </a>
                 </div>
-                <div class="card-body p-4">
-                    <form action="/admin/users/{{ $user->id }}" method="POST">
-                        @csrf
-                        @method('PUT')
 
-                        <div class="mb-3">
-                            <label for="name" class="form-label">Full Name</label>
-                            <input type="text" class="form-control @error('name') is-invalid @enderror" 
-                                   id="name" name="name" value="{{ old('name', $user->name) }}" required>
-                            @error('name')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
+                <form action="{{ route('admin.users.update', $user) }}" method="POST">
+                    @csrf
+                    @method('PATCH')
 
-                        <div class="mb-3">
-                            <label for="email" class="form-label">Email Address</label>
-                            <input type="email" class="form-control @error('email') is-invalid @enderror" 
-                                   id="email" name="email" value="{{ old('email', $user->email) }}" required>
-                            @error('email')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
+                    <!-- Name -->
+                    <div class="mb-4">
+                        <label for="name" class="form-label fw-bold">Name *</label>
+                        <input type="text" class="form-control @error('name') is-invalid @enderror" 
+                               id="name" name="name" value="{{ $user->name }}" required>
+                        @error('name')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
 
-                        <div class="mb-3">
-                            <label for="role" class="form-label">Role</label>
-                            <select class="form-select @error('role') is-invalid @enderror" 
-                                    id="role" name="role" required>
-                                <option value="student" {{ old('role', $user->role) === 'student' ? 'selected' : '' }}>Student</option>
-                                <option value="teacher" {{ old('role', $user->role) === 'teacher' ? 'selected' : '' }}>Teacher</option>
-                                <option value="parent" {{ old('role', $user->role) === 'parent' ? 'selected' : '' }}>Parent</option>
-                                <option value="admin" {{ old('role', $user->role) === 'admin' ? 'selected' : '' }}>Admin</option>
-                            </select>
-                            @error('role')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
+                    <!-- Email -->
+                    <div class="mb-4">
+                        <label for="email" class="form-label fw-bold">Email *</label>
+                        <input type="email" class="form-control @error('email') is-invalid @enderror" 
+                               id="email" name="email" value="{{ $user->email }}" required>
+                        @error('email')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
 
-                        <div class="mb-3">
-                            <label for="status" class="form-label">Status</label>
-                            <select class="form-select @error('status') is-invalid @enderror" 
-                                    id="status" name="status" required>
-                                <option value="active" {{ old('status', $user->status) === 'active' ? 'selected' : '' }}>Active</option>
-                                <option value="inactive" {{ old('status', $user->status) === 'inactive' ? 'selected' : '' }}>Inactive</option>
-                                <option value="suspended" {{ old('status', $user->status) === 'suspended' ? 'selected' : '' }}>Suspended</option>
-                            </select>
-                            @error('status')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
+                    <!-- Role -->
+                    <div class="mb-4">
+                        <label for="role" class="form-label fw-bold">Role *</label>
+                        <select name="role" id="role" class="form-select @error('role') is-invalid @enderror" required>
+                            <option value="student" {{ $user->role === 'student' ? 'selected' : '' }}>Student</option>
+                            <option value="teacher" {{ $user->role === 'teacher' ? 'selected' : '' }}>Teacher</option>
+                            <option value="parent" {{ $user->role === 'parent' ? 'selected' : '' }}>Parent</option>
+                            <option value="admin" {{ $user->role === 'admin' ? 'selected' : '' }}>Admin</option>
+                        </select>
+                        @error('role')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
 
-                        <div class="mb-3">
-                            <label for="batch" class="form-label">Batch/Class</label>
-                            <input type="text" class="form-control" id="batch" name="batch" value="{{ old('batch', $user->batch) }}">
-                        </div>
+                    <!-- Status -->
+                    <div class="mb-4">
+                        <label for="status" class="form-label fw-bold">Status *</label>
+                        <select name="status" id="status" class="form-select @error('status') is-invalid @enderror" required>
+                            <option value="active" {{ $user->status === 'active' ? 'selected' : '' }}>Active</option>
+                            <option value="inactive" {{ $user->status === 'inactive' ? 'selected' : '' }}>Inactive</option>
+                            <option value="suspended" {{ $user->status === 'suspended' ? 'selected' : '' }}>Suspended</option>
+                        </select>
+                        @error('status')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
 
-                        <div class="mb-3">
-                            <label for="phone" class="form-label">Phone Number</label>
-                            <input type="tel" class="form-control" id="phone" name="phone" value="{{ old('phone', $user->phone) }}">
-                        </div>
+                    <!-- Batch -->
+                    <div class="mb-4">
+                        <label for="batch" class="form-label fw-bold">Batch</label>
+                        <input type="text" class="form-control @error('batch') is-invalid @enderror" 
+                               id="batch" name="batch" value="{{ $user->batch }}">
+                        @error('batch')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
 
-                        <div class="d-flex gap-2">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save"></i> Update User
-                            </button>
-                            <a href="/admin/users" class="btn btn-secondary">
-                                <i class="fas fa-times"></i> Cancel
-                            </a>
-                        </div>
-                    </form>
-                </div>
+                    <!-- Phone -->
+                    <div class="mb-4">
+                        <label for="phone" class="form-label fw-bold">Phone</label>
+                        <input type="tel" class="form-control @error('phone') is-invalid @enderror" 
+                               id="phone" name="phone" value="{{ $user->phone }}">
+                        @error('phone')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <!-- Info Box -->
+                    <div class="alert alert-info">
+                        <strong>ℹ️ Note:</strong> User data like email was registered on {{ $user->created_at->format('M d, Y') }}
+                    </div>
+
+                    <!-- Buttons -->
+                    <div class="flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Save Changes
+                        </button>
+                        <a href="{{ route('admin.users.list') }}" class="btn btn-secondary">
+                            Cancel
+                        </a>
+                    </div>
+                </form>
             </div>
         </div>
     </div>

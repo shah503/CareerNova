@@ -3,91 +3,35 @@
 @section('title', 'Select Subject')
 
 @section('content')
-<div class="container py-5">
-    <div class="row mb-4">
-        <div class="col-md-12">
-            <h2><i class="fas fa-book"></i> Select Subject for Exam</h2>
-            <p class="text-muted">Choose a subject and configure your exam settings</p>
+<div class="py-12">
+    <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+        <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+            <div class="p-6">
+                <h1 class="text-3xl font-bold mb-6"><i class="fas fa-book"></i> Select Subject</h1>
+
+                @if ($subjects->isEmpty())
+                    <div class="alert alert-info">
+                        No subjects available at this time. Please check back later.
+                    </div>
+                @else
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        @foreach ($subjects as $subject)
+                            <a href="{{ route('exam.index', ['subject_id' => $subject->id]) }}" 
+                               class="border rounded-lg p-6 hover:shadow-lg transition cursor-pointer bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
+                                <h3 class="text-xl font-bold text-gray-800 mb-2">{{ $subject->name }}</h3>
+                                <p class="text-gray-600 text-sm mb-4">{{ $subject->description }}</p>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm font-semibold text-blue-600">
+                                        {{ $subject->mcqs_count }} Questions
+                                    </span>
+                                    <span class="text-lg">➜</span>
+                                </div>
+                            </a>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
         </div>
     </div>
-
-    <div class="row">
-        @forelse ($subjects as $subject)
-            <div class="col-md-4 mb-4">
-                <div class="card h-100 shadow-sm hover-lift">
-                    <div class="card-body">
-                        <h5 class="card-title">
-                            <i class="fas fa-bookmark text-primary"></i> {{ $subject->name }}
-                        </h5>
-                        <p class="card-text text-muted small">{{ $subject->description }}</p>
-                        
-                        <div class="mb-3">
-                            <small class="text-success">
-                                <i class="fas fa-check-circle"></i> 
-                                {{ $subject->getActiveMcqCount() }} Active Questions
-                            </small>
-                        </div>
-
-                        <!-- Exam Config Form -->
-                        <form action="/exam/create" method="POST" class="exam-config-form">
-                            @csrf
-                            <input type="hidden" name="subject_id" value="{{ $subject->id }}">
-
-                            <div class="mb-2">
-                                <label for="question_count_{{ $subject->id }}" class="form-label small">
-                                    Number of Questions
-                                </label>
-                                <select class="form-select form-select-sm" name="question_count" id="question_count_{{ $subject->id }}" required>
-                                    <option value="10">10 Questions</option>
-                                    <option value="20">20 Questions</option>
-                                    <option value="30">30 Questions</option>
-                                    <option value="50">50 Questions</option>
-                                </select>
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="duration_{{ $subject->id }}" class="form-label small">
-                                    Duration (minutes)
-                                </label>
-                                <select class="form-select form-select-sm" name="duration_minutes" id="duration_{{ $subject->id }}" required>
-                                    <option value="10">10 Minutes</option>
-                                    <option value="20" selected>20 Minutes</option>
-                                    <option value="30">30 Minutes</option>
-                                    <option value="60">60 Minutes</option>
-                                </select>
-                            </div>
-
-                            <button type="submit" class="btn btn-primary btn-sm w-100">
-                                <i class="fas fa-play"></i> Start Exam
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        @empty
-            <div class="col-md-12">
-                <div class="alert alert-info text-center py-5">
-                    <i class="fas fa-info-circle fa-3x mb-3"></i>
-                    <p>No subjects available at the moment. Please try again later.</p>
-                </div>
-            </div>
-        @endforelse
-    </div>
 </div>
-
-<style>
-    .hover-lift {
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-    }
-    .hover-lift:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 10px 25px rgba(0,0,0,0.15) !important;
-    }
-    .border-left-primary {
-        border-left: 4px solid #007bff !important;
-    }
-    .border-left-success {
-        border-left: 4px solid #28a745 !important;
-    }
-</style>
 @endsection
