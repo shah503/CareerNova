@@ -29,22 +29,22 @@
                                         <h6 class="fw-bold">
                                             Question {{ $index + 1 }} of {{ count($questions) }}
                                         </h6>
-                                        <span class="badge bg-info">{{ $question['order'] + 1 }}</span>
+                                        <span class="badge bg-info">Q{{ $index + 1 }}</span>
                                     </div>
 
-                                    <p class="fs-6 mb-3">{{ $question['question'] }}</p>
+                                    <p class="fs-6 mb-3 fw-bold">{{ $question['question'] }}</p>
 
                                     <div class="options">
                                         @foreach ($question['options'] as $option => $text)
-                                            <div class="form-check mb-2">
+                                            <div class="form-check mb-3 p-3 rounded" style="background: #f8f9fa; border: 2px solid #e0e0e0; cursor: pointer; transition: all 0.3s;">
                                                 <input class="form-check-input answer-radio" type="radio" 
                                                        name="answer_{{ $question['id'] }}" 
                                                        id="option_{{ $question['id'] }}_{{ $option }}"
                                                        value="{{ $option }}"
                                                        {{ $question['selected_answer'] === $option ? 'checked' : '' }}>
-                                                <label class="form-check-label w-100 p-2" 
-                                                       for="option_{{ $question['id'] }}_{{ $option }}">
-                                                    <strong>{{ $option }}.</strong> {{ $text }}
+                                                <label class="form-check-label w-100" 
+                                                       for="option_{{ $question['id'] }}_{{ $option }}" style="cursor: pointer;">
+                                                    <strong style="color: #667eea; font-size: 1.1rem;">{{ $option }}.</strong> {{ $text }}
                                                 </label>
                                             </div>
                                         @endforeach
@@ -79,6 +79,16 @@
         <div class="col-md-3">
             <div class="card shadow-sm sticky-top" style="top: 20px;">
                 <div class="card-header bg-secondary text-white">
+                    <h6 class="mb-0"><i class="fas fa-clock"></i> Timer</h6>
+                </div>
+                <div class="card-body text-center">
+                    <div style="font-size: 2.5rem; font-weight: bold; color: #667eea; font-family: monospace;" id="timerBig">00:00</div>
+                    <small class="text-muted">Time Remaining</small>
+                </div>
+            </div>
+
+            <div class="card shadow-sm mt-3 sticky-top" style="top: 200px;">
+                <div class="card-header bg-secondary text-white">
                     <h6 class="mb-0"><i class="fas fa-list"></i> Questions</h6>
                 </div>
                 <div class="card-body" style="max-height: 600px; overflow-y: auto;">
@@ -107,13 +117,13 @@
                     <!-- Legend -->
                     <div class="small">
                         <div class="mb-2">
-                            <span class="badge bg-success me-2"></span> Answered
+                            <span class="badge bg-success me-2" style="width: 20px; height: 20px;"></span> Answered
                         </div>
                         <div class="mb-2">
-                            <span class="badge bg-warning me-2"></span> Skipped
+                            <span class="badge bg-warning me-2" style="width: 20px; height: 20px;"></span> Skipped
                         </div>
                         <div>
-                            <span class="badge bg-danger me-2"></span> Current
+                            <span class="badge bg-danger me-2" style="width: 20px; height: 20px;"></span> Current
                         </div>
                     </div>
                 </div>
@@ -142,6 +152,14 @@
     .timer.danger {
         color: #dc3545;
     }
+    .form-check-input:checked {
+        background-color: #667eea;
+        border-color: #667eea;
+    }
+    .form-check-input:checked + label {
+        color: #667eea;
+        font-weight: 600;
+    }
 </style>
 
 @push('scripts')
@@ -155,14 +173,17 @@
     function updateTimer() {
         const minutes = Math.floor(timeRemaining / 60);
         const seconds = timeRemaining % 60;
-        document.getElementById('timeDisplay').textContent = 
-            String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+        const timeStr = String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+        document.getElementById('timeDisplay').textContent = timeStr;
+        document.getElementById('timerBig').textContent = timeStr;
 
         const timerElement = document.getElementById('timer');
         if (timeRemaining <= 60) {
             timerElement.classList.add('danger');
+            document.getElementById('timerBig').style.color = '#dc3545';
         } else if (timeRemaining <= 300) {
             timerElement.classList.add('warning');
+            document.getElementById('timerBig').style.color = '#ffc107';
         }
 
         if (timeRemaining <= 0) {
@@ -184,7 +205,7 @@
 
     // Update navigator
     function updateNavigator() {
-        document.querySelectorAll('.question-btn').forEach(btn => btn.classList.remove('btn-danger', 'btn-success'));
+        document.querySelectorAll('.question-btn').forEach(btn => btn.classList.remove('btn-danger', 'btn-success', 'btn-warning'));
         
         let answeredCount = 0;
         questions.forEach((q, i) => {
@@ -225,7 +246,7 @@
                 })
             }).then(response => response.json())
               .then(data => {
-                  console.log('Answer saved:', data);
+                  console.log('Answer saved');
                   updateNavigator();
               });
         });
@@ -233,7 +254,8 @@
 
     // Navigation
     document.querySelectorAll('.btn-next').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
             if (currentQuestion < totalQuestions - 1) {
                 showQuestion(currentQuestion + 1);
             }
@@ -241,7 +263,8 @@
     });
 
     document.querySelectorAll('.btn-prev').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
             if (currentQuestion > 0) {
                 showQuestion(currentQuestion - 1);
             }
@@ -257,7 +280,8 @@
     });
 
     // Submit exam
-    document.querySelector('.btn-submit-exam').addEventListener('click', () => {
+    document.querySelector('.btn-submit-exam').addEventListener('click', (e) => {
+        e.preventDefault();
         if (confirm('Are you sure you want to submit the exam?')) {
             document.getElementById('submitExamForm').submit();
         }
@@ -265,20 +289,16 @@
 
     function autoSubmitExam() {
         alert('Time is up! Your exam will be auto-submitted.');
-
         const form = document.createElement('form');
         form.method = 'POST';
         form.action = `/exam/session/{{ $session->id }}/auto-submit`;
-
         const csrf = document.createElement('input');
         csrf.type = 'hidden';
         csrf.name = '_token';
         csrf.value = '{{ csrf_token() }}';
-
         form.appendChild(csrf);
         document.body.appendChild(form);
         form.submit();
-      
     }
 
     // Initialize
@@ -291,3 +311,4 @@
 </form>
 
 @endpush
+@endsection

@@ -37,6 +37,8 @@ class ExamSession extends Model
     ];
 
     // Relationships
+    // Relationships
+
     public function user()
     {
         return $this->belongsTo(User::class);
@@ -52,14 +54,8 @@ class ExamSession extends Model
         return $this->belongsTo(Subject::class);
     }
 
-    // Scopes
-    public function scopeCompleted($query)
+    public function answerLogs()
     {
-        return $query->where('status', 'completed');
-    }
-
-    public function scopePassed($query)
-    {
-        return $query->where('is_passed', true);
+        return $this->hasMany(AnswerLog::class, 'exam_session_id');
     }
 }

@@ -5,98 +5,91 @@ namespace App\Http\Controllers\Student;
 use App\Http\Controllers\Controller;
 use App\Models\ExamSession;
 use App\Models\Subject;
-use App\Services\AnalyticsService;
+use App\Services\ScoringService;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-    protected $analyticsService;
+    protected $scoringService;
 
-    public function __construct(AnalyticsService $analyticsService = null)
+    public function __construct(ScoringService $scoringService)
     {
-        $this->analyticsService = $analyticsService;
+        $this->scoringService = $scoringService;
     }
 
     /**
-     * Show student dashboard
-     */
-    /**
-     * Display the Student Dashboard Workspace with Metrics & Session Tracking.
+     * Student Dashboard with complete analytics
      */
     public function index()
     {
         $user = auth()->user();
+        $analytics = $this->scoringService->getUserAnalytics($user);
+        $performanceTrend = $this->scoringService->getPerformanceTrend($user, 10);
 
-        $stats = [
-            'total_tests' => ExamSession::where('user_id', $user->id)->count(),
-            
-            'completed_tests' => ExamSession::where('user_id', $user->id)
-                ->where('status', 'completed')
-                ->count(),
-                
-            'average_score' => ExamSession::where('user_id', $user->id)
-                ->where('status', 'completed')
-                ->avg('percentage') ?? 0,
-                
-            // ✅ FIXED: Calculates passing count by assessing if percentage meets/exceeds 50%
-            'tests_passed' => ExamSession::where('user_id', $user->id)
-                ->where('status', 'completed')
-                ->where('percentage', '>=', 50) // Adjust this threshold value if your passing score is higher
-                ->count(),
-        ];
+        // Prepare chart data
+        $trendLabels = $performanceTrend->map(fn($session) => $session->subject->name . ' (' . $session->finished_at->format('M d') . ')')->toArray();
+        $trendData = $performanceTrend->pluck('percentage')->toArray();
 
-        $recentSessions = ExamSession::where('user_id', $user->id)
-            ->with('mcq')
-            ->latest()
-            ->limit(5)
-            ->get();
+        // Subject-wise performance chart
+        $subjectLabels = [];
+        $subjectData = [];
+        foreach ($analytics['subject_performance'] as $subjectId => $performance) {
+            $subject = Subject::find($subjectId);
+            if ($subject) {
+                $subjectLabels[] = $subject->name;
+                $subjectData[] = round($performance['average'], 2);
+            }
+        }
 
-        // 🚀 SYNC: Passes data directly to your beautiful student/dashboard layout template
-        return view('student.dashboard', compact('stats', 'recentSessions'));
+        return view('student.dashboard', compact(
+            'analytics',
+            'performanceTrend',
+            'trendLabels',
+            'trendData',
+            'subjectLabels',
+            'subjectData'
+        ));
     }
 
     /**
-     * View all exams
+     * Exam history
      */
-    public function exams()
+    public function examHistory()
     {
-        $subjects = Subject::where('status', 'active')->get();
-        return view('student.exams', compact('subjects'));
-    }
+        $user = auth()->user();
+        $sessions = ExamSession::where('user_id', $user->id)
+            ->whereIn('status', ['completed', 'expired'])
+            ->with('subject')
+            ->orderBy('finished_at', 'desc')
+            ->paginate(10);
 
+        // Change 'student.exam-history' to match your actual blade file name:
+        return view('student.exam', compact('sessions')); 
+    }
     /**
-     * View results
+     * Leaderboard
      */
-    public function results()
+    public function leaderboard()
     {
-        $sessions = ExamSession::where('user_id', auth()->id())
-            ->with('mcq')
-            ->latest()
-            ->paginate(15);
+        $leaderboard = ExamSession::whereIn('status', ['completed', 'expired'])
+            ->with('user', 'subject')
+            ->orderBy('percentage', 'desc')
+            ->limit(100)
+            ->get()
+            ->groupBy('subject_id');
 
-        return view('student.results', compact('sessions'));
+        return view('student.leaderboard', compact('leaderboard'));
     }
 
     /**
-     * View analytics
+     * Analytics
      */
     public function analytics()
     {
         $user = auth()->user();
-        
-        $monthlyData = ExamSession::where('user_id', $user->id)
-            ->where('status', 'completed')
-            ->get()
-            ->groupBy(function ($session) {
-                return $session->created_at->format('Y-m');
-            })
-            ->map(function ($sessions) {
-                return [
-                    'count' => $sessions->count(),
-                    'avg_score' => $sessions->avg('percentage'),
-                ];
-            });
+        $analytics = $this->scoringService->getUserAnalytics($user);
+        $performanceTrend = $this->scoringService->getPerformanceTrend($user, 20);
 
-        return view('student.analytics', compact('monthlyData'));
+        return view('student.analytics', compact('analytics', 'performanceTrend'));
     }
 }

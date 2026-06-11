@@ -25,6 +25,15 @@ class McqController extends Controller
      */
     public function selectSubject()
     {
+        // Explicitly wipe active exam state tracking when arriving at subject selection screen
+        session()->forget([
+            'exam_mcqs',
+            'exam_answers',
+            'exam_session_id',
+            'exam_started',
+            'exam_subject_id'
+        ]);
+
         $subjects = Subject::where('status', 'active')
             ->withCount(['mcqs' => function ($q) {
                 $q->where('status', 'active');
@@ -56,7 +65,7 @@ class McqController extends Controller
                 ->with('error', 'No questions available for this subject');
         }
 
-        // Check if there's an existing exam session
+        // Check if there's an existing ongoing exam session
         $existingExam = ExamSession::where('user_id', auth()->id())
             ->where('subject_id', $subjectId)
             ->where('status', 'ongoing')
@@ -85,7 +94,7 @@ class McqController extends Controller
             ]);
         }
 
-        // Store in session
+        // Store in session cleanly
         session([
             'exam_mcqs' => $mcqs->toArray(),
             'exam_subject_id' => $subjectId,
@@ -227,53 +236,62 @@ class McqController extends Controller
                 ->with('error', 'Exam session expired');
         }
 
-        // Fetch exam session
         $examSession = \App\Models\ExamSession::findOrFail($examSessionId);
 
-        // Calculate correct answers
         $correctAnswers = 0;
+        $wrongAnswers = 0;
+        $unansweredCount = 0;
 
         foreach ($mcqs as $mcq) {
-            if (isset($answers[$mcq->id])) {
-                if ($answers[$mcq->id] === $mcq->correct_option) {
-                    $correctAnswers++;
-                }
+            $mcqId = $mcq['id'];
+            $correctOption = $mcq['correct_option'] ?? $mcq['correct_answer'] ?? null;
+            $studentAnswer = $answers[$mcqId] ?? null;
+
+            if (is_null($studentAnswer) || $studentAnswer === '') {
+                $unansweredCount++;
+                $isCorrect = false;
+                $studentAnswer = null; 
+            } elseif ($studentAnswer === $correctOption) {
+                $correctAnswers++;
+                $isCorrect = true;
+            } else {
+                $wrongAnswers++;
+                $isCorrect = false;
             }
+
+            // Write logs
+            \App\Models\AnswerLog::updateOrCreate(
+                ['exam_session_id' => $examSession->id, 'mcq_id' => $mcqId],
+                [
+                    'user_id'         => auth()->id(),
+                    'selected_answer' => $studentAnswer,
+                    'correct_answer'  => $correctOption,
+                    'is_correct'      => $isCorrect,
+                ]
+            );
         }
 
-        // Counts
         $totalQuestions = count($mcqs);
-        $answeredCount = count($answers);
-        $wrongAnswers = $answeredCount - $correctAnswers;
-        $unansweredCount = $totalQuestions - $answeredCount;
+        $percentage = ($totalQuestions > 0) ? ($correctAnswers / $totalQuestions * 100) : 0;
 
-        $percentage = ($totalQuestions > 0)
-            ? ($correctAnswers / $totalQuestions * 100)
-            : 0;
-
-        // Update DB
+        // Force save exact calculated values straight to DB column targets
         $examSession->update([
-            'score' => $correctAnswers,
-            'correct_answers' => $correctAnswers,
-            'wrong_answers' => $wrongAnswers,
-            'unanswered_count' => $unansweredCount,
-            'percentage' => round($percentage, 2),
-            'finished_at' => now(),
-            'status' => 'completed',
-            'is_submitted' => true,
+            'total_questions'  => $totalQuestions, // Ensures total matches correctly
+            'score'            => $correctAnswers,
+            'correct_answers'  => $correctAnswers,
+            'wrong_answers'    => $wrongAnswers,
+            'unanswered_count' => $unansweredCount, // Updates your column safely
+            'percentage'       => round($percentage, 2),
+            'finished_at'      => now(),
+            'status'           => 'completed',
+            'is_submitted'     => true,
         ]);
 
-        // Clear session
-    session()->forget([
-        'exam_mcqs',
-        'exam_answers',
-        'exam_session_id',
-        ]);
+        session()->forget(['exam_mcqs', 'exam_answers', 'exam_session_id', 'exam_started', 'exam_subject_id']);
 
         return redirect()->route('exam.results', $examSession->id)
             ->with('success', 'Exam submitted successfully!');
     }
-    
     /**
      * Show exam result
      */
@@ -283,28 +301,80 @@ class McqController extends Controller
             abort(403, 'Unauthorized');
         }
 
+        // Fetch answer logs with the mcq relationship loaded
         $answerLogs = AnswerLog::where('exam_session_id', $examSession->id)
             ->with('mcq')
             ->get();
 
         $results = $answerLogs->map(function($log) {
             return [
-                'question' => $log->mcq->question,
-                'option_a' => $log->mcq->option_a,
-                'option_b' => $log->mcq->option_b,
-                'option_c' => $log->mcq->option_c,
-                'option_d' => $log->mcq->option_d,
+                'question' => $log->mcq->question ?? 'N/A',
+                'option_a' => $log->mcq->option_a ?? '',
+                'option_b' => $log->mcq->option_b ?? '',
+                'option_c' => $log->mcq->option_c ?? '',
+                'option_d' => $log->mcq->option_d ?? '',
                 'student_answer' => $log->selected_answer,
                 'correct_answer' => $log->correct_answer,
-                'explanation' => $log->mcq->explanation,
+                'explanation' => $log->mcq->explanation ?? '',
                 'is_correct' => $log->is_correct,
+                'difficulty' => $log->mcq->difficulty ?? 'easy',
             ];
         });
 
-        // Get user's ranking
+        // Dynamic difficulty calculation blocks
+        $difficultyBreakdown = [
+            'easy' => ['correct' => 0, 'total' => 0, 'percentage' => 0],
+            'medium' => ['correct' => 0, 'total' => 0, 'percentage' => 0],
+            'hard' => ['correct' => 0, 'total' => 0, 'percentage' => 0],
+        ];
+
+        foreach ($answerLogs as $log) {
+            $difficulty = strtolower($log->mcq->difficulty ?? 'easy');
+            if (array_key_exists($difficulty, $difficultyBreakdown)) {
+                $difficultyBreakdown[$difficulty]['total']++;
+                if ($log->is_correct) {
+                    $difficultyBreakdown[$difficulty]['correct']++;
+                }
+            }
+        }
+
+        foreach ($difficultyBreakdown as $tier => $data) {
+            $difficultyBreakdown[$tier]['percentage'] = $data['total'] > 0 
+                ? round(($data['correct'] / $data['total']) * 100, 2) 
+                : 0;
+        }
+
         $userRank = auth()->user()->leaderboard?->rank ?? 'N/A';
 
-        return view('exam.result', compact('examSession', 'results', 'userRank'));
+        $grade = [
+            'grade' => 'F',
+            'color' => '#dc3545',
+            'emoji' => '❌',
+            'remarks' => 'Need Improvement'
+        ];
+
+        if ($examSession->percentage >= 100) {
+            $grade = ['grade' => 'A+', 'color' => '#28a745', 'emoji' => '🏆', 'remarks' => 'Outstanding'];
+        } elseif ($examSession->percentage >= 90) {
+            $grade = ['grade' => 'A', 'color' => '#28a745', 'emoji' => '🎉', 'remarks' => 'Excellent'];
+        } elseif ($examSession->percentage >= 80) {
+            $grade = ['grade' => 'B+', 'color' => '#0d6efd', 'emoji' => '👏', 'remarks' => 'Very Good'];
+        } elseif ($examSession->percentage >= 70) {
+            $grade = ['grade' => 'B', 'color' => '#0d6efd', 'emoji' => '👍', 'remarks' => 'Good'];
+        } elseif ($examSession->percentage >= 60) {
+            $grade = ['grade' => 'C', 'color' => '#ffc107', 'emoji' => '🙂', 'remarks' => 'Satisfactory'];
+        } elseif ($examSession->percentage >= 50) {
+            $grade = ['grade' => 'D', 'color' => '#fd7e14', 'emoji' => '⚠️', 'remarks' => 'Pass'];
+        }
+
+        return view('exam.result', compact(
+            'examSession',
+            'answerLogs',
+            'results',
+            'userRank',
+            'grade',
+            'difficultyBreakdown'
+        ));
     }
 
     /**

@@ -268,12 +268,7 @@
                                         @endforeach
                                     </div>
 
-                                    @if (!empty($mcq['explanation']))
-                                        <div class="alert alert-info small mt-4 mb-0">
-                                            <strong><i class="fas fa-lightbulb"></i> Hint:</strong> 
-                                            {{ $mcq['explanation'] }}
-                                        </div>
-                                    @endif
+                                    <!-- Hints hidden during exam - shown only in results -->
 
                                     <div class="mt-3">
                                         <button type="button" class="btn btn-outline-warning btn-sm mark-review-btn" 

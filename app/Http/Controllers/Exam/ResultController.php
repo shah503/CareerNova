@@ -20,7 +20,7 @@ class ResultController extends Controller
     }
 
     /**
-     * Show exam results
+     * Show exam results - ONLY for completed sessions
      */
     public function show(ExamSession $session)
     {
@@ -29,17 +29,24 @@ class ResultController extends Controller
             abort(403);
         }
 
-        // Check if exam is completed
+        // Check if exam is completed - MUST be completed to view results
         if ($session->status !== 'completed' && $session->status !== 'expired') {
             return redirect("/exam/session/{$session->id}/questions");
         }
 
-        // Get summary
-        $summary = $this->examSessionService->getSessionSummary($session);
-        $scoreByDifficulty = $this->scoringService->getScoreByDifficulty($session);
+        // Get grade and analytics
         $grade = $this->scoringService->getGrade($session->percentage);
+        $difficultyBreakdown = $this->scoringService->getScoreByDifficulty($session);
+        $answerLogs = $session->answerLogs()->with('mcq')->orderBy('question_order')->get();
 
-        return view('exam.result', compact('session', 'summary', 'scoreByDifficulty', 'grade'));
+        // Prepare data for charts
+        $chartData = [
+            'correct' => $session->correct_answers,
+            'wrong' => $session->wrong_answers,
+            'unanswered' => $session->unanswered,
+        ];
+
+        return view('exam.result', compact('session', 'grade', 'difficultyBreakdown', 'answerLogs', 'chartData'));
     }
 
     /**
@@ -86,8 +93,6 @@ class ResultController extends Controller
         $summary = $this->examSessionService->getSessionSummary($session);
         $grade = $this->scoringService->getGrade($session->percentage);
 
-        // You can use a PDF library like TCPDF or Dompdf here
-        // For now, returning JSON
         return response()->json([
             'message' => 'PDF download functionality coming soon',
             'summary' => $summary,

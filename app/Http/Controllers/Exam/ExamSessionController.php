@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Exam;
 use App\Http\Controllers\Controller;
 use App\Models\ExamSession;
 use App\Models\Subject;
-use App\Models\AnswerLog;
 use App\Services\ExamSessionService;
 use App\Services\SettingService;
 use Illuminate\Http\Request;
@@ -35,7 +34,7 @@ class ExamSessionController extends Controller
     }
 
     /**
-     * Create new exam session
+     * Create new exam session or recover existing one
      */
     public function create(Request $request)
     {
@@ -48,12 +47,11 @@ class ExamSessionController extends Controller
         $subject = Subject::findOrFail($validated['subject_id']);
         $user = auth()->user();
 
-        // ✅ Cast to integers (important!)
         $questionCount = (int) $validated['question_count'];
         $durationMinutes = (int) $validated['duration_minutes'];
 
-        // Create exam session
-        $session = $this->examSessionService->createSession(
+        // ✅ Use recovery logic - returns existing session or creates new one
+        $session = $this->examSessionService->getOrCreateSession(
             $user,
             $subject,
             $questionCount,
@@ -76,7 +74,6 @@ class ExamSessionController extends Controller
             return redirect("/exam/session/{$session->id}/questions");
         }
 
-        // Lock the session
         $this->examSessionService->lockSession($session);
 
         return redirect("/exam/session/{$session->id}/questions");
@@ -113,7 +110,7 @@ class ExamSessionController extends Controller
         $validated = $request->validate([
             'mcq_id' => 'required|exists:mcqs,id',
             'selected_answer' => 'nullable|in:A,B,C,D',
-            'time_taken_minutes' => 'nullable|integer',
+            'time_taken' => 'nullable|integer',
         ]);
 
         try {
@@ -121,7 +118,7 @@ class ExamSessionController extends Controller
                 $session,
                 (int) $validated['mcq_id'],
                 $validated['selected_answer'],
-                (int) ($validated['time_taken_minutes'] ?? 0)
+                (int) ($validated['time_taken'] ?? 0)
             );
 
             return response()->json([
@@ -134,7 +131,7 @@ class ExamSessionController extends Controller
     }
 
     /**
-     * Complete exam
+     * Submit entire exam - PERMANENTLY CLOSES SESSION
      */
     public function submit(Request $request, ExamSession $session)
     {
@@ -142,13 +139,14 @@ class ExamSessionController extends Controller
             abort(403);
         }
 
+        // ✅ PERMANENTLY CLOSE SESSION
         $session = $this->examSessionService->submitExam($session);
 
         return redirect("/exam/session/{$session->id}/result");
     }
 
     /**
-     * Auto-submit when time expires
+     * Auto-submit when time expires - PERMANENTLY CLOSES SESSION
      */
     public function autoSubmit(ExamSession $session)
     {
@@ -156,6 +154,7 @@ class ExamSessionController extends Controller
             abort(403);
         }
 
+        // ✅ PERMANENTLY CLOSE SESSION
         $session = $this->examSessionService->autoSubmitExam($session);
 
         return redirect("/exam/session/{$session->id}/result");

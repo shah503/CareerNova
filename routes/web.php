@@ -101,7 +101,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('student')->prefix('student')->name('student.')->group(function () {
         Route::get('/dashboard', [StudentDashboardController::class, 'index'])->name('dashboard');
         Route::get('/exams', [StudentDashboardController::class, 'exams'])->name('exams');
-        Route::get('/results', [StudentDashboardController::class, 'results'])->name('results');
+        Route::get('/results', [StudentDashboardController::class, 'examHistory'])->name('results'); // ✅ FIXED METHOD
         Route::get('/analytics', [StudentDashboardController::class, 'analytics'])->name('analytics');
     });
 
@@ -129,7 +129,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/index', [McqController::class, 'index'])->name('index');
         Route::post('/answer', [McqController::class, 'saveAnswer'])->name('answer');
         Route::post('/submit', [McqController::class, 'submitTest'])->name('submit');
-        Route::get('/result/{examSession}', [McqController::class, 'result'])->name('result');
+        Route::get('/result/{examSession}', [McqController::class, 'result'])->name('results');
         // 🚀 ADD THIS LINE BELOW:
         Route::get('/progress', [McqController::class, 'getProgress'])->name('progress');
         Route::post('/mark-review', [McqController::class, 'markForReview'])->name('mark-review');

@@ -26,7 +26,7 @@ class AnswerLog extends Model
     // Relationships
     public function user()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(\App\Models\ExamSession::class);
     }
 
     public function mcq()

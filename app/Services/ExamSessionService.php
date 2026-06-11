@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Subject;
 use App\Models\AnswerLog;
 use App\Models\Mcq;
+use Carbon\Carbon;
 
 class ExamSessionService
 {
@@ -22,19 +23,39 @@ class ExamSessionService
     }
 
     /**
-     * Create a new exam session
-     * CRITICAL: MCQs locked after creation
+     * Get or create exam session with recovery logic
+     * If exam is in progress, return existing session
+     * If exam is completed, create new session
+     */
+    public function getOrCreateSession(User $user, Subject $subject, $questionCount = 10, $durationMinutes = 20)
+    {
+        // Check for existing ongoing session
+        $existingSession = ExamSession::where('user_id', $user->id)
+            ->where('subject_id', $subject->id)
+            ->where('status', 'ongoing')
+            ->first();
+
+        if ($existingSession) {
+            // Session recovery - return existing session
+            return $existingSession;
+        }
+
+        // Create completely new session
+        return $this->createSession($user, $subject, $questionCount, $durationMinutes);
+    }
+
+    /**
+     * Create a completely new exam session
      */
     public function createSession(User $user, Subject $subject, $questionCount = 10, $durationMinutes = 20)
     {
-        // Ensure integers
         $questionCount = (int) $questionCount;
         $durationMinutes = (int) $durationMinutes;
 
         // Get randomized MCQs
         $mcqs = $this->mcqRandomizationService->getRandomMcqs($subject->id, $questionCount);
         
-        // Create locked MCQ sequence
+        // Lock MCQ sequence permanently
         $mcqSequence = $mcqs->pluck('id')->toArray();
 
         $session = ExamSession::create([
@@ -49,17 +70,17 @@ class ExamSessionService
             'is_locked' => false,
         ]);
 
-        // Pre-create answer logs with user_id ✅ CRITICAL FIX
+        // Pre-create answer logs with REQUIRED user_id
         foreach ($mcqs as $index => $mcq) {
             AnswerLog::create([
                 'exam_session_id' => $session->id,
-                'user_id' => $user->id,  // ✅ MUST INCLUDE THIS
+                'user_id' => $user->id,  // ✅ CRITICAL
                 'mcq_id' => $mcq->id,
                 'correct_answer' => $mcq->correct_answer,
-                'question_order' => $index,
                 'selected_answer' => null,
                 'is_correct' => false,
                 'time_taken_seconds' => 0,
+                'question_order' => $index,
             ]);
         }
 
@@ -102,7 +123,7 @@ class ExamSessionService
     }
 
     /**
-     * Submit entire exam
+     * Submit entire exam - PERMANENTLY CLOSES SESSION
      */
     public function submitExam(ExamSession $session)
     {
@@ -114,8 +135,9 @@ class ExamSessionService
         $totalQuestions = $answerLogs->count();
         $percentage = $totalQuestions > 0 ? ($correctAnswers / $totalQuestions) * 100 : 0;
 
+        // ✅ PERMANENTLY CLOSE SESSION
         $session->update([
-            'status' => 'completed',
+            'status' => 'completed',  // ✅ Session is now CLOSED
             'finished_at' => now(),
             'score' => $correctAnswers,
             'correct_answers' => $correctAnswers,
@@ -129,12 +151,12 @@ class ExamSessionService
     }
 
     /**
-     * Auto-submit when time expires
+     * Auto-submit when time expires - PERMANENTLY CLOSES SESSION
      */
     public function autoSubmitExam(ExamSession $session)
     {
         $session->update([
-            'status' => 'expired',
+            'status' => 'expired',  // ✅ Session is now CLOSED
             'finished_at' => now(),
         ]);
 
@@ -205,6 +227,10 @@ class ExamSessionService
                 'is_correct' => $log->is_correct,
                 'explanation' => $log->mcq->explanation,
                 'difficulty' => $log->mcq->difficulty,
+                'option_a' => $log->mcq->option_a,
+                'option_b' => $log->mcq->option_b,
+                'option_c' => $log->mcq->option_c,
+                'option_d' => $log->mcq->option_d,
             ];
         })->toArray();
 
