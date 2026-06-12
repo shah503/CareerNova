@@ -9,38 +9,23 @@ use App\Models\Subject;
 use App\Models\QuestionProgress;
 use App\Services\ExamService;
 use Illuminate\Http\Request;
+use App\Services\ScoringService;
 use Carbon\Carbon;
 
 class McqController extends Controller
 {
+    // 1. Keep your existing property and add the missing one
+    protected $scoringService;
     protected $examService;
 
-    public function __construct(ExamService $examService)
-    {
-        $this->examService = $examService;
-    }
-
     /**
-     * Select subject to take exam
+     * Inject both ScoringService and ExamService into the controller
      */
-    public function selectSubject()
+    public function __construct(ScoringService $scoringService, ExamService $examService)
     {
-        // Explicitly wipe active exam state tracking when arriving at subject selection screen
-        session()->forget([
-            'exam_mcqs',
-            'exam_answers',
-            'exam_session_id',
-            'exam_started',
-            'exam_subject_id'
-        ]);
-
-        $subjects = Subject::where('status', 'active')
-            ->withCount(['mcqs' => function ($q) {
-                $q->where('status', 'active');
-            }])
-            ->get();
-
-        return view('exam.select-subject', compact('subjects'));
+        // 2. Keep your existing assignment and add the new one below it
+        $this->scoringService = $scoringService;
+        $this->examService = $examService;
     }
 
     /**
@@ -106,6 +91,18 @@ class McqController extends Controller
             'exam_started' => false,
         ]);
     }
+    /**
+     * Display the subject selection page for the student.
+     */
+    public function selectSubject()
+    {
+        // 1. Fetch all subjects from your database (Make sure you have a Subject model)
+        // If your model is named differently (e.g. Course), change 'Subject' to your model name.
+        $subjects = \App\Models\Subject::all(); 
+
+        // 2. Pass the $subjects variable into your view
+        return view('exam.select-subject', compact('subjects')); 
+    }
 
     /**
      * Start exam
@@ -141,6 +138,51 @@ class McqController extends Controller
         return redirect()->route('exam.index', ['subject_id' => $subjectId])
             ->with('success', 'Exam started!');
     }
+
+    /**
+     * Get existing answers for recovery
+     */
+    private function getExistingAnswers($examSessionId)
+    {
+        $answerLogs = AnswerLog::where('exam_session_id', $examSessionId)->get();
+        $answers = [];
+
+        foreach ($answerLogs as $log) {
+            $answers[$log->mcq_id] = $log->selected_answer;
+        }
+
+        return $answers;
+    } // This closes getExistingAnswers safely.
+
+    // 🟢 ONLY ADD THIS NEW METHOD RIGHT HERE:
+    /**
+     * Handle the exam submission payload.
+     * Maps to route: /exam/submit
+     */
+    public function submitTest(Request $request)
+    {
+        $session = \App\Models\ExamSession::where('user_id', auth()->id())
+            ->where('status', 'active') 
+            ->latest()
+            ->firstOrFail();
+
+        $submittedAnswers = $request->input('answers', []);
+        $answerLogs = $session->answerLogs()->get();
+
+        foreach ($answerLogs as $log) {
+            $selectedAnswer = $submittedAnswers[$log->mcq_id] ?? null;
+            $log->selected_answer = $selectedAnswer;
+            $log->save();
+
+            $this->scoringService->markAnswer($log);
+        }
+
+        $this->scoringService->updateSessionScore($session);
+
+        return redirect()->route('student.dashboard')->with('success', 'Your exam has been submitted successfully!');
+    }
+
+
 
     /**
      * Save answer with question progress
@@ -223,76 +265,6 @@ class McqController extends Controller
     }
 
     /**
-     * Submit exam
-     */
-    public function submitTest(Request $request)
-    {
-        $mcqs = session('exam_mcqs');
-        $answers = session('exam_answers', []);
-        $examSessionId = session('exam_session_id');
-
-        if (!$mcqs) {
-            return redirect()->route('exam.select-subject')
-                ->with('error', 'Exam session expired');
-        }
-
-        $examSession = \App\Models\ExamSession::findOrFail($examSessionId);
-
-        $correctAnswers = 0;
-        $wrongAnswers = 0;
-        $unansweredCount = 0;
-
-        foreach ($mcqs as $mcq) {
-            $mcqId = $mcq['id'];
-            $correctOption = $mcq['correct_option'] ?? $mcq['correct_answer'] ?? null;
-            $studentAnswer = $answers[$mcqId] ?? null;
-
-            if (is_null($studentAnswer) || $studentAnswer === '') {
-                $unansweredCount++;
-                $isCorrect = false;
-                $studentAnswer = null; 
-            } elseif ($studentAnswer === $correctOption) {
-                $correctAnswers++;
-                $isCorrect = true;
-            } else {
-                $wrongAnswers++;
-                $isCorrect = false;
-            }
-
-            // Write logs
-            \App\Models\AnswerLog::updateOrCreate(
-                ['exam_session_id' => $examSession->id, 'mcq_id' => $mcqId],
-                [
-                    'user_id'         => auth()->id(),
-                    'selected_answer' => $studentAnswer,
-                    'correct_answer'  => $correctOption,
-                    'is_correct'      => $isCorrect,
-                ]
-            );
-        }
-
-        $totalQuestions = count($mcqs);
-        $percentage = ($totalQuestions > 0) ? ($correctAnswers / $totalQuestions * 100) : 0;
-
-        // Force save exact calculated values straight to DB column targets
-        $examSession->update([
-            'total_questions'  => $totalQuestions, // Ensures total matches correctly
-            'score'            => $correctAnswers,
-            'correct_answers'  => $correctAnswers,
-            'wrong_answers'    => $wrongAnswers,
-            'unanswered_count' => $unansweredCount, // Updates your column safely
-            'percentage'       => round($percentage, 2),
-            'finished_at'      => now(),
-            'status'           => 'completed',
-            'is_submitted'     => true,
-        ]);
-
-        session()->forget(['exam_mcqs', 'exam_answers', 'exam_session_id', 'exam_started', 'exam_subject_id']);
-
-        return redirect()->route('exam.results', $examSession->id)
-            ->with('success', 'Exam submitted successfully!');
-    }
-    /**
      * Show exam result
      */
     public function result(ExamSession $examSession)
@@ -321,11 +293,11 @@ class McqController extends Controller
             ];
         });
 
-        // Dynamic difficulty calculation blocks
+        // ✅ Dynamic difficulty calculation blocks
         $difficultyBreakdown = [
-            'easy' => ['correct' => 0, 'total' => 0, 'percentage' => 0],
-            'medium' => ['correct' => 0, 'total' => 0, 'percentage' => 0],
-            'hard' => ['correct' => 0, 'total' => 0, 'percentage' => 0],
+            'easy' => ['correct' => 0, 'total' => 0, 'incorrect' => 0, 'percentage' => 0],
+            'medium' => ['correct' => 0, 'total' => 0, 'incorrect' => 0, 'percentage' => 0],
+            'hard' => ['correct' => 0, 'total' => 0, 'incorrect' => 0, 'percentage' => 0],
         ];
 
         foreach ($answerLogs as $log) {
@@ -334,6 +306,8 @@ class McqController extends Controller
                 $difficultyBreakdown[$difficulty]['total']++;
                 if ($log->is_correct) {
                     $difficultyBreakdown[$difficulty]['correct']++;
+                } else {
+                    $difficultyBreakdown[$difficulty]['incorrect']++;
                 }
             }
         }
@@ -346,6 +320,7 @@ class McqController extends Controller
 
         $userRank = auth()->user()->leaderboard?->rank ?? 'N/A';
 
+        // ✅ Grade calculation
         $grade = [
             'grade' => 'F',
             'color' => '#dc3545',
@@ -367,6 +342,8 @@ class McqController extends Controller
             $grade = ['grade' => 'D', 'color' => '#fd7e14', 'emoji' => '⚠️', 'remarks' => 'Pass'];
         }
 
+        // Keep your grading and return logic here untouched...
+        // Leave your existing result calculation code up here completely alone...
         return view('exam.result', compact(
             'examSession',
             'answerLogs',
@@ -375,20 +352,12 @@ class McqController extends Controller
             'grade',
             'difficultyBreakdown'
         ));
-    }
+    } // This closes your result() method on line 354
 
+    // 🟢 REPLACE THE DUPLICATE BLOCK WITH ONLY THIS:
     /**
-     * Get existing answers for recovery
+     * Handle the exam submission payload.
+     * Maps to route: /exam/submit
      */
-    private function getExistingAnswers($examSessionId)
-    {
-        $answerLogs = AnswerLog::where('exam_session_id', $examSessionId)->get();
-        $answers = [];
 
-        foreach ($answerLogs as $log) {
-            $answers[$log->mcq_id] = $log->selected_answer;
-        }
-
-        return $answers;
-    }
-}
+} // 🔴 This remains the absolute final closing brace of the file.

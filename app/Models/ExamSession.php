@@ -17,15 +17,19 @@ class ExamSession extends Model
         'total_questions',
         'score',
         'correct_answers',
+        'wrong_answers',
+        'unanswered_count',
         'time_taken_minutes',
         'answers',
         'subject_breakdown',
         'status',
         'percentage',
         'is_passed',
+        'is_submitted',
         'started_at',
         'finished_at',
         'completed_at',
+        'last_saved_at',
     ];
 
     protected $casts = [
@@ -34,11 +38,12 @@ class ExamSession extends Model
         'started_at' => 'datetime',
         'finished_at' => 'datetime',
         'completed_at' => 'datetime',
+        'last_saved_at' => 'datetime',
+        'is_submitted' => 'boolean',
+        'is_passed' => 'boolean',
     ];
 
     // Relationships
-    // Relationships
-
     public function user()
     {
         return $this->belongsTo(User::class);

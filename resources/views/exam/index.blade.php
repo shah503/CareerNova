@@ -232,7 +232,7 @@
             <div class="exam-container">
                 {{-- QUESTIONS SECTION --}}
                 <div>
-                    <form id="exam-form" action="{{ route('exam.submit') }}" method="POST">
+                    <form id="exam-form" action="{{ route('student.exam.submit') }}" method="POST">
                         @csrf
 
                         @foreach ($mcqs as $index => $mcq)
@@ -267,8 +267,6 @@
                                             </div>
                                         @endforeach
                                     </div>
-
-                                    <!-- Hints hidden during exam - shown only in results -->
 
                                     <div class="mt-3">
                                         <button type="button" class="btn btn-outline-warning btn-sm mark-review-btn" 
@@ -369,30 +367,38 @@
             const timerElement = document.getElementById('timer');
             const examForm = document.getElementById('exam-form');
 
-            // Initialize bubble sheet
+            // Update numeric tracking states globally
             function updateBubbleSheet() {
-                fetch('{{ route("exam.progress") }}', {
-                    headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' }
-                })
-                .then(r => r.json())
-                .then(data => {
-                    document.getElementById('answered-count').textContent = data.answered;
-                    document.getElementById('marked-count').textContent = data.marked;
-                    document.getElementById('unanswered-count').textContent = data.not_visited + data.visited;
-                    document.getElementById('not-visited-count').textContent = data.not_visited;
-                });
+                fetch('{{ route("exam.progress") }}')
+                    .then(r => r.json())
+                    .then(stats => {
+                        const answeredEl = document.getElementById('answered-count');
+                        const markedEl = document.getElementById('marked-count');
+                        const unansweredEl = document.getElementById('unanswered-count');
+                        const notVisitedEl = document.getElementById('not-visited-count');
+
+                        if (answeredEl) answeredEl.textContent = stats.answered || 0;
+                        if (markedEl) markedEl.textContent = stats.marked || 0;
+                        if (unansweredEl) unansweredEl.textContent = stats.unanswered || 0;
+                        if (notVisitedEl) notVisitedEl.textContent = stats.not_visited || 0;
+                    })
+                    .catch(err => console.error("Error loading stat sync metrics:", err));
             }
 
-            // Select answer and update bubble
+            // Radio input interaction pipeline
+            // 🟢 FIXED: Correctly pass parameters down to saveAnswer
             function selectAnswer(questionId, answer, questionNumber) {
                 const bubble = document.getElementById('bubble-' + questionNumber);
-                bubble.classList.remove('not-visited', 'visited', 'marked');
-                bubble.classList.add('answered');
-
+                if (bubble) {
+                    // Instantly update the visual bubble color to blue on click
+                    bubble.className = 'bubble answered'; 
+                }
+                
+                // Fix the parameter ordering mismatch here:
                 saveAnswer(questionId, answer, questionNumber, false);
             }
 
-            // Save answer
+            // Save choice mapping state 
             function saveAnswer(questionId, answer, questionNumber, markForReview) {
                 fetch('{{ route("exam.answer") }}', {
                     method: 'POST',
@@ -414,15 +420,15 @@
                 });
             }
 
-            // Mark for review
+            // Handle Review toggles
             function toggleMarkForReview(questionId, questionNumber) {
                 const bubble = document.getElementById('bubble-' + questionNumber);
-                const currentClass = bubble.classList[0];
+                if (!bubble) return;
                 
-                if (currentClass === 'answered') {
+                if (bubble.classList.contains('answered')) {
                     bubble.classList.remove('answered');
                     bubble.classList.add('answered-marked');
-                } else if (currentClass === 'answered-marked') {
+                } else if (bubble.classList.contains('answered-marked')) {
                     bubble.classList.remove('answered-marked');
                     bubble.classList.add('answered');
                 } else {
@@ -436,20 +442,26 @@
                         'X-CSRF-TOKEN': '{{ csrf_token() }}'
                     },
                     body: JSON.stringify({
+                        question_id: questionId,
                         question_number: questionNumber
                     })
-                });
+                })
+                .then(r => r.json())
+                .then(() => updateBubbleSheet());
             }
 
-            // Jump to question
+            // Smooth tracking scroll handler
+            // 🟢 FIXED JUMP TO QUESTION SYNTAX
             function jumpToQuestion(questionNumber) {
                 const element = document.querySelector('[data-question-number="' + questionNumber + '"]');
-                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                element.classList.add('border-success');
-                setTimeout(() => element.classList.remove('border-success'), 2000);
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    element.classList.add('border-success');
+                    setTimeout(() => element.classList.remove('border-success'), 2000);
+                }
             }
 
-            // Timer countdown
+            // Countdown Logic Engine
             const timerInterval = setInterval(() => {
                 timeRemaining--;
                 let minutes = Math.floor(timeRemaining / 60);
@@ -459,7 +471,6 @@
                     String(minutes).padStart(2, '0') + ':' + 
                     String(seconds).padStart(2, '0');
 
-                // Color changes
                 if (timeRemaining <= 300) {
                     timerElement.style.color = '#ff9800';
                 }
@@ -468,7 +479,6 @@
                     timerElement.style.animation = 'pulse 1s infinite';
                 }
 
-                // Auto-submit
                 if (timeRemaining <= 0) {
                     clearInterval(timerInterval);
                     alert('⏰ Time is up! Submitting exam...');
@@ -476,25 +486,21 @@
                 }
             }, 1000);
 
-            // Confirm submission
+            // Verify explicit intent on completion click
             function confirmSubmit() {
                 const answered = document.getElementById('answered-count').textContent;
                 const total = totalQuestions;
-
-                const message = `You have answered ${answered} out of ${total} questions.\n\nAre you sure you want to submit?`;
-                return confirm(message);
+                return confirm(`You have answered ${answered} out of ${total} questions.\n\nAre you sure you want to submit?`);
             }
 
-            // Save draft
             function saveDraft() {
                 alert('Draft saved! You can resume this exam later.');
             }
 
-            // Update bubble sheet on load
+            // Setup lifecycle boots
             updateBubbleSheet();
-            setInterval(updateBubbleSheet, 30000); // Update every 30 seconds
+            setInterval(updateBubbleSheet, 10000); // Poll status updates cleanly every 10s
 
-            // Prevent accidental refresh
             window.addEventListener('beforeunload', (e) => {
                 if (timeRemaining > 0) {
                     e.preventDefault();

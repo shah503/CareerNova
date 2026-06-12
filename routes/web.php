@@ -9,6 +9,8 @@ use App\Http\Controllers\Teacher\CsvController;
 use App\Http\Controllers\Student\DashboardController as StudentDashboardController;
 use App\Http\Controllers\Parent\DashboardController as ParentDashboardController;
 use App\Http\Controllers\McqController;
+use App\Http\Controllers\ExamSelectionController; // Added missing controller import
+use Illuminate\Http\Request; // ✅ FIXED: Added missing Request import
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -20,9 +22,8 @@ Route::get('/', function () {
     return view('welcome');
 })->name('home');
 
-// 🚀 FIXED: Added the public Guest demo landing track completely outside the auth block
+// Public Guest demo landing track completely outside the auth block
 Route::get('/guest/dashboard', function () {
-    // You can point this to a unique view like: return view('guest.dashboard');
     return "<h3>🌍 Welcome to the Guest Demo Workspace!</h3><p>You are viewing public features. Log in to take full mock examinations.</p>";
 })->name('guest.dashboard');
 
@@ -64,20 +65,20 @@ Route::middleware('auth')->group(function () {
         Route::get('/analytics', [AdminController::class, 'analytics'])->name('analytics');
         Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
     
-    // ✅ NEW: Admin Management Routes
         // Admin Management (create/list/delete admins)
         Route::get('/admins', [AdminManagementController::class, 'listAdmins'])->name('admins.list');
         Route::get('/admins/create', [AdminManagementController::class, 'create'])->name('admins.create');
         Route::post('/admins', [AdminManagementController::class, 'store'])->name('admins.store');
         Route::delete('/admins/{admin}', [AdminManagementController::class, 'destroyAdmin'])->name('admins.destroy');
         Route::get('/subjects', [AdminController::class, 'subjects'])->name('subjects');
+        
         // MCQ Approval Routes
         Route::prefix('mcq-approval')->name('mcq-approval.')->group(function () {
-        Route::get('/', [McqApprovalController::class, 'index'])->name('index');
-        Route::get('/{mcq}', [McqApprovalController::class, 'show'])->name('show');
-        Route::patch('/{mcq}/approve', [McqApprovalController::class, 'approve'])->name('approve');
-        Route::patch('/{mcq}/reject', [McqApprovalController::class, 'reject'])->name('reject');
-        Route::post('/bulk-approve', [McqApprovalController::class, 'bulkApprove'])->name('bulk-approve');
+            Route::get('/', [McqApprovalController::class, 'index'])->name('index');
+            Route::get('/{mcq}', [McqApprovalController::class, 'show'])->name('show');
+            Route::patch('/{mcq}/approve', [McqApprovalController::class, 'approve'])->name('approve');
+            Route::patch('/{mcq}/reject', [McqApprovalController::class, 'reject'])->name('reject');
+            Route::post('/bulk-approve', [McqApprovalController::class, 'bulkApprove'])->name('bulk-approve');
         });
     });
 
@@ -90,29 +91,33 @@ Route::middleware('auth')->group(function () {
         Route::get('/classes', [TeacherDashboardController::class, 'classes'])->name('classes');
         Route::get('/results', [TeacherDashboardController::class, 'results'])->name('results');
     });
-        // CSV Import Routes
+
+    // CSV Import Routes
     Route::middleware('teacher')->prefix('teacher/csv')->name('teacher.csv.')->group(function () {
         Route::get('/download-template', [CsvController::class, 'downloadTemplate'])->name('download-template');
         Route::post('/import', [CsvController::class, 'import'])->name('import');
-
     });
 
-    // Student Dashboard Routes
+    // Student Dashboard & Exam Processing Routes
     Route::middleware('student')->prefix('student')->name('student.')->group(function () {
+        // Dashboard Panels
         Route::get('/dashboard', [StudentDashboardController::class, 'index'])->name('dashboard');
         Route::get('/exams', [StudentDashboardController::class, 'exams'])->name('exams');
-        Route::get('/results', [StudentDashboardController::class, 'examHistory'])->name('results'); // ✅ FIXED METHOD
+        Route::get('/results', [StudentDashboardController::class, 'examHistory'])->name('results');
         Route::get('/analytics', [StudentDashboardController::class, 'analytics'])->name('analytics');
-    });
+        // 🚀 ADD THIS LINE RIGHT HERE:
+        Route::match(['get', 'post'], '/exam/submit', [McqController::class, 'submitTest'])->name('exam.submit');
+        
+        // Exam Setup & Subject Picker
+        Route::get('/exam/select-subject', [McqController::class, 'selectSubject'])->name('exam.select-subject');
 
-    // Exam Routes
-    Route::middleware('student')->prefix('exam')->name('exam.')->group(function () {
-        Route::get('/selection', [ExamSelectionController::class, 'index'])->name('selection');
-        Route::post('/create-custom', [ExamSelectionController::class, 'createCustomTest'])->name('create-custom');
-        Route::post('/load-preset/{testPackage}', [ExamSelectionController::class, 'loadPresetTest'])->name('load-preset');
-
-        Route::post('/progress', [McqController::class, 'getProgress'])->name('progress');
-        Route::post('/mark-review', [McqController::class, 'markForReview'])->name('mark-review');
+        // Core Exam Engine (Moved inside the 'student' prefix group)
+        Route::post('/exam/start', [McqController::class, 'startExam'])->name('exam.start');
+        Route::post('/exam/answer', [McqController::class, 'saveAnswer'])->name('exam.answer');
+        // Change the submit line to just '/' or '/submit'
+        Route::match(['get', 'post'], '/submit', [McqController::class, 'submitTest'])->name('submit');
+        Route::get('/exam/progress', [McqController::class, 'getProgress'])->name('exam.progress');
+        Route::post('/exam/mark-review', [McqController::class, 'markReview'])->name('exam.mark-review');
     });
 
     // Parent Routes
@@ -122,16 +127,28 @@ Route::middleware('auth')->group(function () {
         Route::get('/children/{child}/results', [ParentDashboardController::class, 'childResults'])->name('child.results');
     });
 
-    // MCQ/Exam Routes (Students taking exams)
+    // ✅ FIXED & MERGED: All Exam Routes under a single group block
     Route::middleware('student')->prefix('exam')->name('exam.')->group(function () {
+        // Selection & Setup (ExamSelectionController)
+        Route::get('/selection', [ExamSelectionController::class, 'index'])->name('selection');
+        Route::post('/create-custom', [ExamSelectionController::class, 'createCustomTest'])->name('create-custom');
+        Route::post('/load-preset/{testPackage}', [ExamSelectionController::class, 'loadPresetTest'])->name('load-preset');
+
+        // Active MCQ Testing Flow (McqController)
         Route::get('/select-subject', [McqController::class, 'selectSubject'])->name('select-subject');
         Route::post('/start', [McqController::class, 'startTest'])->name('start');
         Route::get('/index', [McqController::class, 'index'])->name('index');
         Route::post('/answer', [McqController::class, 'saveAnswer'])->name('answer');
-        Route::post('/submit', [McqController::class, 'submitTest'])->name('submit');
+        Route::post('/submit', [McqController::class, 'submitTest'])->name('submit'); // Becomes /exam/submit
         Route::get('/result/{examSession}', [McqController::class, 'result'])->name('results');
-        // 🚀 ADD THIS LINE BELOW:
-        Route::get('/progress', [McqController::class, 'getProgress'])->name('progress');
+        
+        // Progress & Reviews
+        Route::post('/progress', [McqController::class, 'getProgress'])->name('progress');
         Route::post('/mark-review', [McqController::class, 'markForReview'])->name('mark-review');
+        Route::post('/set-review-mode', function (Request $request) {
+            session(['review_mode' => $request->input('review_mode', false)]);
+            return response()->json(['success' => true]);
+        })->name('set-review-mode'); // ✅ FIXED: Stripped duplicate 'exam.' naming
     });
-});
+
+}); // ✅ FIXED: Closes the global Route::middleware('auth') group

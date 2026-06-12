@@ -15,18 +15,23 @@ class AnswerLog extends Model
         'mcq_id',
         'exam_session_id',
         'answer',
+        'selected_answer',
+        'correct_answer',
+        'is_correct',
         'is_review',
         'answered_at',
     ];
 
     protected $casts = [
         'answered_at' => 'datetime',
+        'is_correct' => 'boolean',
+        'is_review' => 'boolean',
     ];
 
-    // Relationships
+    // ✅ FIXED: Correct relationship to User
     public function user()
     {
-        return $this->belongsTo(\App\Models\ExamSession::class);
+        return $this->belongsTo(User::class);
     }
 
     public function mcq()
