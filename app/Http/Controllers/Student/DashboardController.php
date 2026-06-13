@@ -41,7 +41,16 @@ class DashboardController extends Controller
             }
         }
 
+        $recentSessions = \App\Models\ExamSession::where('user_id', $user->id)
+            ->where('status', 'completed')
+            ->latest()
+            ->take(5)
+            ->get();
+
+        $stats = $analytics;
+
         return view('student.dashboard', compact(
+            'stats',
             'analytics',
             'performanceTrend',
             'trendLabels',

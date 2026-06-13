@@ -39,7 +39,7 @@
                         <h3 class="font-semibold"><i class="fas fa-list"></i> My MCQs</h3>
                         <p class="text-gray-600 text-sm">View all your MCQs</p>
                     </a>
-                    <a href="{{ route('teacher.results') }}" class="bg-white p-4 border rounded-lg hover:shadow-md transition">
+                    <a href="{{ route('teacher.result') }}" class="bg-white p-4 border rounded-lg hover:shadow-md transition">
                         <h3 class="font-semibold"><i class="fas fa-chart-bar"></i> Results</h3>
                         <p class="text-gray-600 text-sm">View student results</p>
                     </a>

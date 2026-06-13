@@ -156,31 +156,93 @@ class McqController extends Controller
 
     // 🟢 ONLY ADD THIS NEW METHOD RIGHT HERE:
     /**
-     * Handle the exam submission payload.
-     * Maps to route: /exam/submit
+     * Submit the exam with all answers
      */
     public function submitTest(Request $request)
     {
-        $session = \App\Models\ExamSession::where('user_id', auth()->id())
-            ->where('status', 'active') 
-            ->latest()
-            ->firstOrFail();
-
-        $submittedAnswers = $request->input('answers', []);
-        $answerLogs = $session->answerLogs()->get();
-
-        foreach ($answerLogs as $log) {
-            $selectedAnswer = $submittedAnswers[$log->mcq_id] ?? null;
-            $log->selected_answer = $selectedAnswer;
-            $log->save();
-
-            $this->scoringService->markAnswer($log);
+        // ✅ FIX: Get the most recent exam session (check both statuses)
+        $examSessionId = session('exam_session_id');
+    
+        if (!$examSessionId) {
+            return redirect()->route('exam.select-subject')
+                ->with('error', 'No active exam session found.');
         }
 
-        $this->scoringService->updateSessionScore($session);
+        // Get session - no status filter needed
+        $examSession = ExamSession::findOrFail($examSessionId);
 
-        return redirect()->route('student.dashboard')->with('success', 'Your exam has been submitted successfully!');
+        // Verify ownership
+        if ($examSession->user_id !== auth()->id()) {
+            abort(403, 'Unauthorized');
+        }
+
+        // Get answers from session
+        $mcqs = session('exam_mcqs', []);
+        $answers = session('exam_answers', []);
+
+        if (empty($mcqs)) {
+            return redirect()->route('exam.select-subject')
+                ->with('error', 'Exam data not found');
+        }
+
+    $correctAnswers = 0;
+    $wrongAnswers = 0;
+    $unansweredCount = 0;
+
+    // Process each MCQ
+    foreach ($mcqs as $mcq) {
+        $mcqId = $mcq['id'];
+        $correctOption = $mcq['correct_option'] ?? $mcq['correct_answer'] ?? null;
+        $studentAnswer = $answers[$mcqId] ?? null;
+
+        if (is_null($studentAnswer) || $studentAnswer === '') {
+            $unansweredCount++;
+            $isCorrect = false;
+            $studentAnswer = null;
+        } elseif ($studentAnswer === $correctOption) {
+            $correctAnswers++;
+            $isCorrect = true;
+        } else {
+            $wrongAnswers++;
+            $isCorrect = false;
+        }
+
+        // ✅ FIX: Save answer logs with correct data
+        AnswerLog::updateOrCreate(
+            ['exam_session_id' => $examSession->id, 'mcq_id' => $mcqId],
+            [
+                'user_id'         => auth()->id(),
+                'selected_answer' => $studentAnswer,
+                'correct_answer'  => $correctOption,
+                'is_correct'      => $isCorrect,
+            ]
+        );
     }
+
+    // Calculate percentage
+    $totalQuestions = count($mcqs);
+    $percentage = ($totalQuestions > 0) ? ($correctAnswers / $totalQuestions * 100) : 0;
+
+    // ✅ FIX: Update exam session with all required fields
+    $examSession->update([
+        'total_questions'  => $totalQuestions,
+        'score'            => $correctAnswers,
+        'correct_answers'  => $correctAnswers,
+        'wrong_answers'    => $wrongAnswers,
+        'unanswered_count' => $unansweredCount,
+        'percentage'       => round($percentage, 2),
+        'finished_at'      => now(),
+        'status'           => 'completed',
+        'is_submitted'     => true,
+    ]);
+
+    // Clear session data
+    session()->forget(['exam_mcqs', 'exam_answers', 'exam_session_id', 'exam_started', 'exam_subject_id']);
+
+    // Redirect to results page
+    return redirect()->route('exam.result', $examSession->id)
+        ->with('success', 'Exam submitted successfully!');
+}
 
 
 

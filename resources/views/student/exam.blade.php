@@ -35,7 +35,7 @@
                                         {{ $session->finished_at ? $session->finished_at->format('M d, Y h:i A') : 'N/A' }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                        <a href="{{ route('exam.results', $session->id) }}" class="text-blue-600 hover:text-blue-900 font-semibold">
+                                        <a href="{{ route('exam.result', $session->id) }}" class="text-blue-600 hover:text-blue-900 font-semibold">
                                             View Details
                                         </a>
                                     </td>

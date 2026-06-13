@@ -87,9 +87,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/dashboard', [TeacherDashboardController::class, 'index'])->name('dashboard');
         Route::get('/mcqs', [TeacherDashboardController::class, 'mcqs'])->name('mcqs');
         Route::get('/mcqs/create', [TeacherDashboardController::class, 'createMcq'])->name('mcqs.create');
-        Route::post('/mcqs', [TeacherDashboardController::class, 'storeMcq'])->name('mcqs.store');
+        Route::post('/cqs', [TeacherDashboardController::class, 'storeMcq'])->name('mcqs.store');
         Route::get('/classes', [TeacherDashboardController::class, 'classes'])->name('classes');
-        Route::get('/results', [TeacherDashboardController::class, 'results'])->name('results');
+        Route::get('/result', [TeacherDashboardController::class, 'result'])->name('result');
     });
 
     // CSV Import Routes
@@ -99,32 +99,47 @@ Route::middleware('auth')->group(function () {
     });
 
     // Student Dashboard & Exam Processing Routes
-    Route::middleware('student')->prefix('student')->name('student.')->group(function () {
-        // Dashboard Panels
-        Route::get('/dashboard', [StudentDashboardController::class, 'index'])->name('dashboard');
-        Route::get('/exams', [StudentDashboardController::class, 'exams'])->name('exams');
-        Route::get('/results', [StudentDashboardController::class, 'examHistory'])->name('results');
-        Route::get('/analytics', [StudentDashboardController::class, 'analytics'])->name('analytics');
-        // 🚀 ADD THIS LINE RIGHT HERE:
-        Route::match(['get', 'post'], '/exam/submit', [McqController::class, 'submitTest'])->name('exam.submit');
-        
-        // Exam Setup & Subject Picker
-        Route::get('/exam/select-subject', [McqController::class, 'selectSubject'])->name('exam.select-subject');
+Route::middleware('student')->prefix('student')->name('student.')->group(function () {
+    // Dashboard Panels
+    Route::get('/dashboard', [StudentDashboardController::class, 'index'])->name('dashboard');
+    Route::get('/exams', [StudentDashboardController::class, 'exams'])->name('exams');
+    Route::get('/result', [StudentDashboardController::class, 'examHistory'])->name('result');
+    Route::get('/analytics', [StudentDashboardController::class, 'analytics'])->name('analytics');
+});
 
-        // Core Exam Engine (Moved inside the 'student' prefix group)
-        Route::post('/exam/start', [McqController::class, 'startExam'])->name('exam.start');
-        Route::post('/exam/answer', [McqController::class, 'saveAnswer'])->name('exam.answer');
-        // Change the submit line to just '/' or '/submit'
-        Route::match(['get', 'post'], '/submit', [McqController::class, 'submitTest'])->name('submit');
-        Route::get('/exam/progress', [McqController::class, 'getProgress'])->name('exam.progress');
-        Route::post('/exam/mark-review', [McqController::class, 'markReview'])->name('exam.mark-review');
+// ========================================================================
+    // Unified Student Exam Blocks (Fixed Overwrite)
+    // ========================================================================
+    Route::middleware('student')->prefix('exam')->name('exam.')->group(function () {
+        // Selection & Setup (ExamSelectionController)
+        Route::get('/selection', [ExamSelectionController::class, 'index'])->name('selection');
+        Route::post('/create-custom', [ExamSelectionController::class, 'createCustomTest'])->name('create-custom');
+        Route::post('/load-preset/{testPackage}', [ExamSelectionController::class, 'loadPresetTest'])->name('load-preset');
+
+        // Active MCQ Testing Flow (McqController)
+        Route::get('/select-subject', [McqController::class, 'selectSubject'])->name('select-subject');
+        Route::post('/start', [McqController::class, 'startTest'])->name('start');
+        Route::get('/index', [McqController::class, 'index'])->name('index');
+        Route::post('/answer', [McqController::class, 'saveAnswer'])->name('answer');
+        Route::post('/submit', [McqController::class, 'submitTest'])->name('submit');
+        
+        // Progress & Results
+        Route::get('/progress', [McqController::class, 'getProgress'])->name('progress');
+        Route::get('/result/{examSession}', [McqController::class, 'result'])->name('result'); // ✅ FIXED: Changed 'results' back to 'result'
+        
+        // Reviews
+        Route::post('/mark-review', [McqController::class, 'markForReview'])->name('mark-review');
+        Route::post('/set-review-mode', function (Request $request) {
+            session(['review_mode' => $request->input('review_mode', false)]);
+            return response()->json(['success' => true]);
+        })->name('set-review-mode');
     });
 
     // Parent Routes
     Route::middleware('parent')->prefix('parent')->name('parent.')->group(function () {
         Route::get('/dashboard', [ParentDashboardController::class, 'index'])->name('dashboard');
         Route::get('/children', [ParentDashboardController::class, 'children'])->name('children');
-        Route::get('/children/{child}/results', [ParentDashboardController::class, 'childResults'])->name('child.results');
+        Route::get('/children/{child}/result', [ParentDashboardController::class, 'childResult'])->name('child.result');
     });
 
     // ✅ FIXED & MERGED: All Exam Routes under a single group block
@@ -140,10 +155,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/index', [McqController::class, 'index'])->name('index');
         Route::post('/answer', [McqController::class, 'saveAnswer'])->name('answer');
         Route::post('/submit', [McqController::class, 'submitTest'])->name('submit'); // Becomes /exam/submit
-        Route::get('/result/{examSession}', [McqController::class, 'result'])->name('results');
+        Route::get('/result/{examSession}', [McqController::class, 'result'])->name('result');
         
         // Progress & Reviews
-        Route::post('/progress', [McqController::class, 'getProgress'])->name('progress');
         Route::post('/mark-review', [McqController::class, 'markForReview'])->name('mark-review');
         Route::post('/set-review-mode', function (Request $request) {
             session(['review_mode' => $request->input('review_mode', false)]);

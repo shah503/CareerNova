@@ -232,7 +232,7 @@
             <div class="exam-container">
                 {{-- QUESTIONS SECTION --}}
                 <div>
-                    <form id="exam-form" action="{{ route('student.exam.submit') }}" method="POST">
+                    <form id="exam-form" action="{{ route('exam.submit') }}" method="POST">
                         @csrf
 
                         @foreach ($mcqs as $index => $mcq)

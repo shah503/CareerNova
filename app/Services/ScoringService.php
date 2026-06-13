@@ -17,14 +17,12 @@ class ScoringService
      */
     public function getUserAnalytics(User $user): array
     {
-        // Fetch all completed exam sessions for this user
         $sessions = ExamSession::where('user_id', $user->id)
             ->where('status', 'completed')
             ->get();
 
         $subjectPerformance = [];
 
-        // Group data by subject_id for the chart loop on line 36 of your controller
         foreach ($sessions as $session) {
             $subjectId = $session->subject_id;
 
@@ -32,7 +30,7 @@ class ScoringService
                 $subjectPerformance[$subjectId] = [
                     'total_questions' => 0,
                     'correct_answers' => 0,
-                    'average'         => 0 
+                    'average' => 0,
                 ];
             }
 
@@ -40,14 +38,27 @@ class ScoringService
             $subjectPerformance[$subjectId]['correct_answers'] += $session->correct_answers;
         }
 
-        // Calculate overall weighted averages per subject
         foreach ($subjectPerformance as $subjectId => $data) {
-            $subjectPerformance[$subjectId]['average'] = $data['total_questions'] > 0 
-                ? round(($data['correct_answers'] / $data['total_questions']) * 100, 2)
-                : 0;
+            $subjectPerformance[$subjectId]['average'] =
+                $data['total_questions'] > 0
+                    ? round(($data['correct_answers'] / $data['total_questions']) * 100, 2)
+                    : 0;
         }
 
         return [
+            'total_tests' => $sessions->count(),
+
+            'completed_tests' => $sessions->count(),
+
+            'average_score' => round(
+                $sessions->avg('percentage') ?? 0,
+                2
+            ),
+
+            'tests_passed' => $sessions
+                ->where('percentage', '>=', 50)
+                ->count(),
+
             'subject_performance' => $subjectPerformance,
         ];
     }

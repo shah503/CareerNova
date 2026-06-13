@@ -35,7 +35,7 @@
                         <h3 class="font-semibold text-blue-700"><i class="fas fa-pencil-alt"></i> Take a Test</h3>
                         <p class="text-gray-600 text-sm">Start a new exam</p>
                     </a>
-                    <a href="{{ route('student.results') }}" class="bg-white p-4 border rounded-lg hover:shadow-md transition">
+                    <a href="{{ route('student.result') }}" class="bg-white p-4 border rounded-lg hover:shadow-md transition">
                         <h3 class="font-semibold"><i class="fas fa-list"></i> My Results</h3>
                         <p class="text-gray-600 text-sm">View past test results</p>
                     </a>
