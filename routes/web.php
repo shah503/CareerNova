@@ -87,9 +87,12 @@ Route::middleware('auth')->group(function () {
         Route::get('/dashboard', [TeacherDashboardController::class, 'index'])->name('dashboard');
         Route::get('/mcqs', [TeacherDashboardController::class, 'mcqs'])->name('mcqs');
         Route::get('/mcqs/create', [TeacherDashboardController::class, 'createMcq'])->name('mcqs.create');
-        Route::post('/cqs', [TeacherDashboardController::class, 'storeMcq'])->name('mcqs.store');
+        Route::post('/mcqs', [TeacherDashboardController::class, 'storeMcq'])->name('mcqs.store');
         Route::get('/classes', [TeacherDashboardController::class, 'classes'])->name('classes');
         Route::get('/result', [TeacherDashboardController::class, 'result'])->name('result');
+    
+        // 🟢 FIXED: Removed the extra /teacher prefix and simplified the route name
+        Route::get('/result/{id}', [TeacherDashboardController::class, 'showResult'])->name('result.show');
     });
 
     // CSV Import Routes
@@ -135,11 +138,11 @@ Route::middleware('student')->prefix('student')->name('student.')->group(functio
         })->name('set-review-mode');
     });
 
-    // Parent Routes
+    // Parent Routes - already exist, just clarifying
     Route::middleware('parent')->prefix('parent')->name('parent.')->group(function () {
         Route::get('/dashboard', [ParentDashboardController::class, 'index'])->name('dashboard');
         Route::get('/children', [ParentDashboardController::class, 'children'])->name('children');
-        Route::get('/children/{child}/result', [ParentDashboardController::class, 'childResult'])->name('child.result');
+        Route::get('/children/{child}/results', [ParentDashboardController::class, 'childResults'])->name('child.results');
     });
 
     // ✅ FIXED & MERGED: All Exam Routes under a single group block

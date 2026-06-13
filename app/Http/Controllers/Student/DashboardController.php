@@ -23,36 +23,55 @@ class DashboardController extends Controller
     public function index()
     {
         $user = auth()->user();
-        $analytics = $this->scoringService->getUserAnalytics($user);
-        $performanceTrend = $this->scoringService->getPerformanceTrend($user, 10);
 
-        // Prepare chart data
-        $trendLabels = $performanceTrend->map(fn($session) => $session->subject->name . ' (' . $session->finished_at->format('M d') . ')')->toArray();
-        $trendData = $performanceTrend->pluck('percentage')->toArray();
+       $analytics = $this->scoringService->getUserAnalytics($user);
 
-        // Subject-wise performance chart
+        $performanceTrend = collect(
+            $this->scoringService->getPerformanceTrend($user, 10)
+        );
+
+       // ✅ FIX: ensure always collection
+        $trendLabels = $performanceTrend->map(
+           fn($session) =>
+                $session->subject->name . ' (' . $session->finished_at->format('M d') . ')'
+        )->toArray();
+
+       $trendData = $performanceTrend->pluck('percentage')->toArray();
+
+       // Subject analytics safety
+       $subjectWise = $analytics['subject_performance'] ?? [];
+
         $subjectLabels = [];
         $subjectData = [];
-        foreach ($analytics['subject_performance'] as $subjectId => $performance) {
-            $subject = Subject::find($subjectId);
+
+        foreach ($subjectWise as $subjectId => $performance) {
+            $subject = \App\Models\Subject::find($subjectId);
+
             if ($subject) {
                 $subjectLabels[] = $subject->name;
-                $subjectData[] = round($performance['average'], 2);
+                $subjectData[] = round($performance['average'] ?? 0, 2);
             }
         }
 
+        // ✅ FIX: stats mapping for Blade
+        $stats = [
+            'total_tests'    => $analytics['total_tests'] ?? 0,
+            'completed_tests'=> $analytics['total_tests'] ?? 0,
+            'average_score'  => $analytics['average_score'] ?? 0,
+            'tests_passed'   => $analytics['tests_passed'] ?? 0,
+        ];
+
         $recentSessions = \App\Models\ExamSession::where('user_id', $user->id)
             ->where('status', 'completed')
-            ->latest()
-            ->take(5)
+            ->latest('finished_at')
+            ->take(10)
+            ->with('subject')
             ->get();
-
-        $stats = $analytics;
 
         return view('student.dashboard', compact(
             'stats',
+            'recentSessions',
             'analytics',
-            'performanceTrend',
             'trendLabels',
             'trendData',
             'subjectLabels',
@@ -91,14 +110,37 @@ class DashboardController extends Controller
     }
 
     /**
-     * Analytics
+     * Analytics Page - Shows aggregated student performance data
      */
     public function analytics()
     {
         $user = auth()->user();
-        $analytics = $this->scoringService->getUserAnalytics($user);
-        $performanceTrend = $this->scoringService->getPerformanceTrend($user, 20);
-
-        return view('student.analytics', compact('analytics', 'performanceTrend'));
+    
+        // ✅ Use AnalyticsService (NOT ScoringService) for comprehensive analytics
+        $analyticsService = new \App\Services\AnalyticsService();
+    
+        // Get all required data from the same source as Admin Dashboard
+        $analytics = $analyticsService->getStudentAnalytics($user);
+        $subjectWiseAnalytics = $analyticsService->getSubjectWiseAnalytics($user);
+        $weakAreas = $analyticsService->getWeakAreas($user, 5);
+        $performanceTrend = $analyticsService->getPerformanceTrend($user, 30);
+    
+        // Prepare chart data
+        $trendLabels = array_map(fn($trend) => $trend['date'], $performanceTrend);
+        $trendData = array_map(fn($trend) => $trend['percentage'], $performanceTrend);
+    
+        $subjectLabels = array_map(fn($subject) => $subject['subject_name'], $subjectWiseAnalytics);
+        $subjectData = array_map(fn($subject) => $subject['average_percentage'], $subjectWiseAnalytics);
+    
+        return view('student.analytics', compact(
+            'analytics',
+            'subjectWiseAnalytics',
+            'weakAreas',
+            'performanceTrend',
+            'trendLabels',
+            'trendData',
+            'subjectLabels',
+            'subjectData'
+        ));
     }
 }

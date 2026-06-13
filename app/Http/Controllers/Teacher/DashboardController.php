@@ -19,9 +19,18 @@ class DashboardController extends Controller
 
         // Get all MCQs created by this teacher
         $teacherMcqIds = Mcq::where('created_by', $teacher->id)->pluck('id');
-        $teacherSubjectIds = Mcq::where('created_by', auth()->id())
-                ->distinct()
-                ->pluck('subject_id');
+        
+        // ✅ Get all subjects this teacher has created MCQs for
+        $teacherSubjectIds = Mcq::where('created_by', $teacher->id)
+            ->distinct()
+            ->pluck('subject_id');
+
+        // ✅ Calculate students who took exams from this teacher's MCQs
+        $totalStudentsTaught = ExamSession::whereIn('subject_id', $teacherSubjectIds)
+            ->where('status', 'completed')
+            ->distinct('user_id')
+            ->count('user_id');
+
         $stats = [
             'total_mcqs' => Mcq::where('created_by', $teacher->id)->count(),
             'pending_review' => Mcq::where('created_by', $teacher->id)
@@ -30,12 +39,7 @@ class DashboardController extends Controller
             'approved_mcqs' => Mcq::where('created_by', $teacher->id)
                 ->where('status', 'active')
                 ->count(),
-            // ✅ FIXED: Use correct column 'mcq_id' instead of 'exam_id'
-            
-
-            'total_students_taught' => ExamSession::whereIn('subject_id', $teacherSubjectIds)
-                ->distinct('user_id')
-               ->count('user_id'),
+            'total_students_taught' => $totalStudentsTaught,
         ];
 
         $recentMcqs = Mcq::where('created_by', $teacher->id)
@@ -44,7 +48,15 @@ class DashboardController extends Controller
             ->limit(5)
             ->get();
 
-        return view('teacher.dashboard', compact('stats', 'recentMcqs'));
+        // ✅ Get recent exam sessions from teacher's MCQs
+        $recentResults = ExamSession::whereIn('subject_id', $teacherSubjectIds)
+            ->where('status', 'completed')
+            ->with('user', 'subject')
+            ->latest()
+            ->limit(5)
+            ->get();
+
+        return view('teacher.dashboard', compact('stats', 'recentMcqs', 'recentResults'));
     }
 
     /**
@@ -103,17 +115,79 @@ class DashboardController extends Controller
     }
 
     /**
-     * View exam results
+     * View exam results from teacher's MCQs
      */
     public function results()
     {
-        $teacherMcqIds = Mcq::where('created_by', auth()->id())->pluck('id');
+        $teacher = auth()->user();
+        
+        // ✅ Get all subjects this teacher teaches
+        $teacherSubjectIds = Mcq::where('created_by', $teacher->id)
+            ->distinct()
+            ->pluck('subject_id');
 
-        $results = ExamSession::whereIn('mcq_id', $teacherMcqIds)
-            ->with('user', 'mcq')
+        // ✅ Get results for exams from this teacher's MCQs
+        $results = ExamSession::whereIn('subject_id', $teacherSubjectIds)
+            ->where('status', 'completed')
+            ->with('user', 'subject')
             ->latest()
             ->paginate(20);
 
         return view('teacher.results', compact('results'));
+    }
+
+    /**
+     * Singular alias to handle the exact route configuration mapping safely.
+     */
+    public function result()
+    {
+        return $this->results();
+    }
+
+    /**
+     * Show detailed review sheet for an individual exam session
+     */
+    public function showResult($id)
+    {
+        $examSession = ExamSession::findOrFail($id);
+        $results = [];
+
+        // 🟢 FIXED: Dynamically check which relationship exists on your model to prevent 500 errors
+        if (method_exists($examSession, 'examAnswers')) {
+            $examSession->load('examAnswers.mcq');
+            $answersCollection = $examSession->examAnswers;
+        } elseif (method_exists($examSession, 'responses')) {
+            $examSession->load('responses.mcq');
+            $answersCollection = $examSession->responses;
+        } elseif (method_exists($examSession, 'userAnswers')) {
+            $examSession->load('userAnswers.mcq');
+            $answersCollection = $examSession->userAnswers;
+        } else {
+            // Fallback to avoid crashing if relationship name is completely custom
+            $answersCollection = collect();
+        }
+
+        // Map the recovered relationship records into your view format
+        foreach ($answersCollection as $answer) {
+            $questionData = $answer->mcq ?? $answer->question ?? null; 
+
+            if ($questionData) {
+                $results[] = [
+                    'question'       => $questionData->question,
+                    'option_a'       => $questionData->option_a,
+                    'option_b'       => $questionData->option_b,
+                    'option_c'       => $questionData->option_c,
+                    'option_d'       => $questionData->option_d,
+                    'correct_answer' => $questionData->correct_answer,
+                    'student_answer' => $answer->student_answer ?? $answer->selected_option ?? $answer->answer ?? null,
+                    'explanation'    => $questionData->explanation ?? 'No explanation available.',
+                ];
+            }
+        }
+
+        // Always make sure user and subject are loaded for the headers
+        $examSession->load(['user', 'subject']);
+
+        return view('teacher.result_detail', compact('examSession', 'results'));
     }
 }

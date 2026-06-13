@@ -46,7 +46,7 @@
                                         </td>
                                         <td>{{ $result->created_at->format('M d, Y H:i') }}</td>
                                         <td>
-                                            <a href="#" class="btn btn-sm btn-info" title="View Details">
+                                            <a href="{{ route('teacher.result.show', $result->id) }}" class="btn btn-sm btn-info" title="View Details">
                                                 <i class="fas fa-eye"></i>
                                             </a>
                                         </td>

@@ -73,6 +73,58 @@ class User extends Authenticatable
         return $this->hasMany(UserSubscription::class);
     }
 
+    // ✅ For Teachers
+    public function teachingStudents()
+    {
+        return $this->belongsToMany(User::class, 'student_teacher', 'teacher_id', 'student_id')
+            ->wherePivot('deleted_at', null);
+    }
+
+    /**
+     * For Teachers: Get all exam sessions from MCQs they created
+     */
+    public function studentExamSessions()
+    {
+        return ExamSession::whereIn(
+            'subject_id',
+            Mcq::where('created_by', $this->id)->pluck('subject_id')
+        );
+    }
+
+    /**
+     * For Parents: Get students in same batch (basic synchronization)
+     */
+    public function studentsByBatch()
+    {
+        if ($this->role !== 'parent') {
+            return collect([]);
+        }
+    
+        return User::where('role', 'student')
+            ->where('batch', $this->batch);
+    }
+
+    // ✅ For Students to see their teachers
+    public function teachers()
+    {
+        return $this->belongsToMany(User::class, 'student_teacher', 'student_id', 'teacher_id')
+            ->wherePivot('deleted_at', null);
+    }
+
+    // ✅ For Parents
+    public function studentChildren()
+    {
+        return $this->belongsToMany(User::class, 'student_parent', 'parent_id', 'student_id')
+            ->wherePivot('deleted_at', null);
+    }
+
+    // ✅ For Students to see their parents
+    public function parents()
+    {
+        return $this->belongsToMany(User::class, 'student_parent', 'student_id', 'parent_id')
+            ->wherePivot('deleted_at', null);
+    }
+
     // Scopes
     public function scopeActive($query)
     {
